@@ -80,15 +80,13 @@ export async function saveOnboardingProgress(
     if (profileError) throw profileError;
 
     // Prepare preferences data (if applicable)
-    if (data.sectors || data.countries !== undefined || data.esgPreference !== undefined) {
+    if (data.sectors || data.countries !== undefined ) {
         const preferencesData: Partial<InvestmentPreferences> = {
             user_id: user.id,
         };
 
         if (data.sectors !== undefined) preferencesData.preferred_sectors = data.sectors as any;
         if (data.countries !== undefined) preferencesData.preferred_countries = data.countries as any;
-        if (data.esgPreference !== undefined) preferencesData.esg_preference = data.esgPreference;
-
         // Upsert preferences
         const { error: preferencesError } = await supabase
             .from('investment_preferences')
@@ -132,6 +130,13 @@ export async function hasCompletedOnboarding(): Promise<boolean> {
     let delay = 200; // Start with 200ms delay
 
     while (retries > 0) {
+        // Double check session validity first
+        const { data: { session }, error: authError } = await supabase.auth.getSession();
+        if (authError || !session) {
+            console.warn("Session invalid during onboarding check, returning false");
+            return false;
+        }
+
         const { data, error } = await supabase
             .from('user_profiles')
             .select('onboarding_completed')
@@ -146,6 +151,7 @@ export async function hasCompletedOnboarding(): Promise<boolean> {
         // If error is not "no rows found", something went wrong
         if (error && error.code !== 'PGRST116') {
             console.error('Error checking onboarding status:', error);
+            // Don't loop if it's a permission error or similar
             return false;
         }
 

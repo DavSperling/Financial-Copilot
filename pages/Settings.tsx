@@ -56,11 +56,22 @@ export const Settings: React.FC<SettingsProps> = ({ user, onLogout, isDarkMode, 
 
             if (error) throw error;
 
-            setMessage({ type: 'success', text: 'Password updated successfully' });
+            setMessage({ type: 'success', text: 'Password updated successfully!' });
             setPasswords({ current: '', new: '', confirm: '' });
+
+            // Redirect after a short delay to show success message
+            setTimeout(() => {
+                try {
+                    onLogout();
+                } catch (e) {
+                    console.error('Logout error:', e);
+                }
+            }, 1500);
+
         } catch (err: any) {
             setMessage({ type: 'error', text: err.message || 'Error updating password' });
         } finally {
+            // ALWAYS stop loading, no matter what
             setIsLoading(false);
         }
     };
@@ -70,12 +81,17 @@ export const Settings: React.FC<SettingsProps> = ({ user, onLogout, isDarkMode, 
 
         setIsLoading(true);
         try {
-            // In a real app, you would call a cloud function or backend API
-            // await supabase.functions.invoke('delete-account');
+            // Call the database function to delete self
+            const { error } = await supabase.rpc('delete_user');
 
+            if (error) throw error;
+
+            // Sign out after successful deletion (user no longer exists)
+            // Use props to force UI update
             await onLogout();
-        } catch (err) {
-            console.error(err);
+        } catch (err: any) {
+            console.error("Error deleting account:", err);
+            setMessage({ type: 'error', text: err.message || 'Failed to delete account. Did you run the SQL script?' });
         } finally {
             setIsLoading(false);
         }

@@ -57,9 +57,15 @@ export default function App() {
           avatar: 'https://picsum.photos/200'
         });
 
-        // Check if user has completed onboarding
-        const completed = await hasCompletedOnboarding();
-        setCurrentView(completed ? 'dashboard' : 'onboarding');
+        // Check if user has completed onboarding with error handling
+        try {
+          const completed = await hasCompletedOnboarding();
+          setCurrentView(completed ? 'dashboard' : 'onboarding');
+        } catch (error) {
+          console.error("Error checking onboarding status:", error);
+          // Fallback to dashboard if check fails to avoid infinite loop
+          setCurrentView('dashboard');
+        }
       } else {
         setUser(null);
         setCurrentView('landing');
@@ -71,9 +77,14 @@ export default function App() {
 
   const handleLogin = async (mockUser: User) => {
     setUser(mockUser);
-    // Check if user has completed onboarding
-    const completed = await hasCompletedOnboarding();
-    setCurrentView(completed ? 'dashboard' : 'onboarding');
+    // Check if user has completed onboarding with error handling
+    try {
+      const completed = await hasCompletedOnboarding();
+      setCurrentView(completed ? 'dashboard' : 'onboarding');
+    } catch (error) {
+      console.error("Error checking onboarding status:", error);
+      setCurrentView('dashboard');
+    }
   };
 
   const handleLogout = async () => {
