@@ -9,8 +9,11 @@ import { User } from './types';
 import { supabase } from './supabaseClient';
 import { hasCompletedOnboarding } from './services/onboardingService';
 
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
+
 // Simple router state to avoid external router dependencies in this demo
-export type ViewState = 'landing' | 'login' | 'register' | 'onboarding' | 'dashboard' | 'profile' | 'settings';
+export type ViewState = 'landing' | 'login' | 'register' | 'onboarding' | 'dashboard' | 'profile' | 'settings' | 'forgot-password' | 'reset-password';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewState>('landing');
@@ -48,7 +51,12 @@ export default function App() {
     });
 
     // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Handle password recovery event
+      if (event === 'PASSWORD_RECOVERY') {
+        setCurrentView('reset-password');
+      }
+
       if (session?.user) {
         setUser({
           id: session.user.id,
@@ -57,20 +65,45 @@ export default function App() {
           avatar: 'https://picsum.photos/200'
         });
 
-        // Check if user has completed onboarding with error handling
-        try {
-          const completed = await hasCompletedOnboarding();
-          setCurrentView(completed ? 'dashboard' : 'onboarding');
-        } catch (error) {
-          console.error("Error checking onboarding status:", error);
-          // Fallback to dashboard if check fails to avoid infinite loop
-          setCurrentView('dashboard');
+        // Check pathname for reset password
+        const path = window.location.pathname;
+        const hash = window.location.hash;
+        const type = new URLSearchParams(hash.replace('#', '?')).get('type');
+
+        if (path.includes('/reset-password') || type === 'recovery') {
+          setCurrentView('reset-password');
+        } else {
+          // Normal login flow
+          try {
+            const completed = await hasCompletedOnboarding();
+            setCurrentView(completed ? 'dashboard' : 'onboarding');
+          } catch (error) {
+            console.error("Error checking onboarding status:", error);
+            setCurrentView('dashboard');
+          }
         }
       } else {
         setUser(null);
-        setCurrentView('landing');
+        // Check for public routes before forcing landing
+        const path = window.location.pathname;
+        const hash = window.location.hash;
+        if (path.includes('/reset-password') || (hash && hash.includes('type=recovery'))) {
+          setCurrentView('reset-password');
+        } else {
+          setCurrentView('landing');
+        }
       }
     });
+
+    // Check URL on initial load for recovery flow
+    // IMPORTANT: Check pathname first as our backend redirects to /reset-password
+    const path = window.location.pathname;
+    const hash = window.location.hash;
+    if (path.includes('/reset-password') || (hash && hash.includes('type=recovery'))) {
+      setCurrentView('reset-password');
+      // We do NOT want to stop loading here, we want the auth listener to fire too
+      // or we just set view and wait.
+    }
 
     return () => subscription.unsubscribe();
   }, []);
@@ -125,6 +158,21 @@ export default function App() {
           view={currentView}
           onNavigate={navigateTo}
           onLogin={handleLogin}
+        />
+      )}
+
+      {currentView === 'forgot-password' && (
+        <ForgotPasswordPage onNavigate={navigateTo} />
+      )}
+
+      {currentView === 'reset-password' && (
+        <ResetPasswordPage
+          token={
+            new URLSearchParams(window.location.hash.replace('#', '?')).get('access_token') ||
+            new URLSearchParams(window.location.search).get('access_token') ||
+            ''
+          }
+          onNavigate={navigateTo}
         />
       )}
 

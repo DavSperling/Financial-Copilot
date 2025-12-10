@@ -162,9 +162,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({ view, onNavigate, onLogin })
               />
               {!isRegister && (
                 <div className="flex justify-end">
-                  <a href="#" className="text-sm font-medium text-primary-600 hover:text-primary-500">
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('forgot-password')}
+                    className="text-sm font-medium text-primary-600 hover:text-primary-500"
+                  >
                     Forgot password?
-                  </a>
+                  </button>
                 </div>
               )}
             </div>
