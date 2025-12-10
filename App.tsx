@@ -55,6 +55,7 @@ export default function App() {
       // Handle password recovery event
       if (event === 'PASSWORD_RECOVERY') {
         setCurrentView('reset-password');
+        return; // EXIT EARLY to prevent session check from overwriting view
       }
 
       if (session?.user) {
