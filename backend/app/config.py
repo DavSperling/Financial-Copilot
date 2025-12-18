@@ -8,10 +8,10 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:5173"  # Default for local dev
 
     class Config:
-        env_file = ".env"
-        # Since we are running from backend folder or root, we might need to look for env file.
-        # Ideally the user runs this with env vars set, or we point to the parent .env
+        env_file = "../.env.local"
+        # Since we are running from backend folder, we look for .env.local in the project root
         env_file_encoding = 'utf-8'
+        extra = 'ignore'  # Allow extra env vars not defined in Settings
 
 @lru_cache()
 def get_settings():

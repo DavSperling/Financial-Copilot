@@ -33,6 +33,9 @@ import {
 import { ViewState } from '../App';
 import { Profile } from './Profile';
 import { Settings } from './Settings';
+import RecommendationsPage from './Portfolio/RecommendationsPage';
+import CalculatorPage from './Investment/CalculatorPage';
+import TransactionsPage from './TransactionsPage';
 
 interface DashboardPageProps {
   user: User | null;
@@ -215,6 +218,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
               <button
                 onClick={() => setIsAddModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 transition-colors"
+                aria-label="Close modal"
               >
                 <X size={20} />
               </button>
@@ -232,9 +236,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
                 <div className="w-full">
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">Type</label>
                   <select
+                    id="asset-type-select"
                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none"
                     value={formData.type}
                     onChange={e => setFormData({ ...formData, type: e.target.value })}
+                    aria-label="Select asset type"
                   >
                     <option value="Stock">Stock</option>
                     <option value="Crypto">Crypto</option>
@@ -323,12 +329,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
           <SidebarItem
             icon={<PieChartIcon size={20} />}
             label="Portfolio"
-            onClick={() => { }} // Placeholder
+            active={currentView === 'recommendations'}
+            onClick={() => onNavigate('recommendations')}
+          />
+          <SidebarItem
+            icon={<TrendingUp size={20} />}
+            label="Calculator"
+            active={currentView === 'calculator'}
+            onClick={() => onNavigate('calculator')}
           />
           <SidebarItem
             icon={<Wallet size={20} />}
             label="Transactions"
-            onClick={() => { }} // Placeholder
+            active={currentView === 'transactions'}
+            onClick={() => onNavigate('transactions')}
           />
           <SidebarItem
             icon={<SettingsIcon size={20} />}
@@ -366,6 +380,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
           <button
             onClick={() => setSidebarOpen(true)}
             className="lg:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100"
+            aria-label="Open sidebar"
           >
             <Menu size={24} />
           </button>
@@ -384,7 +399,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
           </div>
 
           <div className="flex items-center gap-4 ml-4">
-            <button className="relative p-2 rounded-full text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors">
+            <button
+              className="relative p-2 rounded-full text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+              aria-label="Notifications"
+            >
               <Bell size={20} />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
             </button>
@@ -397,6 +415,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
             <Profile user={user} />
           ) : currentView === 'settings' ? (
             <Settings user={user} onLogout={onLogout} isDarkMode={isDarkMode} onToggleTheme={onToggleTheme} />
+          ) : currentView === 'recommendations' ? (
+            <RecommendationsPage />
+          ) : currentView === 'calculator' ? (
+            <CalculatorPage />
+          ) : currentView === 'transactions' ? (
+            <TransactionsPage />
           ) : (
             <div className="max-w-6xl mx-auto space-y-8">
 
@@ -451,7 +475,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
                 <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-semibold text-slate-900">Portfolio Performance</h3>
-                    <select className="text-sm border-slate-200 rounded-lg text-slate-600 focus:ring-primary-500 outline-none p-1">
+                    <select
+                      className="text-sm border-slate-200 rounded-lg text-slate-600 focus:ring-primary-500 outline-none p-1"
+                      aria-label="Select time range"
+                    >
                       <option>Last 6 Months</option>
                     </select>
                   </div>
@@ -578,6 +605,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
                                 <button
                                   onClick={() => handleDeleteAsset(asset.id)}
                                   className="text-slate-400 hover:text-red-500 transition-colors p-2 hover:bg-red-50 rounded-lg"
+                                  aria-label={`Delete ${asset.symbol}`}
                                 >
                                   <Trash2 size={18} />
                                 </button>

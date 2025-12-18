@@ -3,6 +3,7 @@ import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/AuthPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { OnboardingPage } from './pages/OnboardingPage';
+import RecommendationsPage from './pages/Portfolio/RecommendationsPage';
 
 import { Layout } from './components/Layout';
 import { User } from './types';
@@ -13,11 +14,16 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 
 // Simple router state to avoid external router dependencies in this demo
-export type ViewState = 'landing' | 'login' | 'register' | 'onboarding' | 'dashboard' | 'profile' | 'settings' | 'forgot-password' | 'reset-password';
+export type ViewState = 'landing' | 'login' | 'register' | 'onboarding' | 'dashboard' | 'profile' | 'settings' | 'forgot-password' | 'reset-password' | 'recommendations' | 'calculator' | 'transactions';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<ViewState>('landing');
-  const [user, setUser] = useState<User | null>(null);
+  const [currentView, setCurrentView] = useState<ViewState>('calculator');
+  const [user, setUser] = useState<User | null>({
+    id: 'test-user',
+    name: 'Test Agent',
+    email: 'test@example.com',
+    avatar: 'https://ui-avatars.com/api/?name=Test+Agent'
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -184,7 +190,7 @@ export default function App() {
         />
       )}
 
-      {(currentView === 'dashboard' || currentView === 'profile' || currentView === 'settings') && user && (
+      {(currentView === 'dashboard' || currentView === 'profile' || currentView === 'settings' || currentView === 'recommendations' || currentView === 'calculator' || currentView === 'transactions') && user && (
         <DashboardPage
           user={user}
           onLogout={handleLogout}
