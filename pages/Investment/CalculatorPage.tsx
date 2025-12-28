@@ -1,24 +1,25 @@
-import React, { useState } from 'react';
-import { calculateInvestment, InvestmentResponse } from '../../services/investmentService';
+import React, { useState, useEffect } from 'react';
+import { generateInvestmentChart, ChartResponse } from '../../services/investmentService';
 import { InvestmentChart } from '../../components/Investment/InvestmentChart';
 import { SummaryCards } from '../../components/Investment/SummaryCards';
 import { Loader2, Calculator } from 'lucide-react';
 import { Button } from '../../components/Button';
 
 const CalculatorPage: React.FC = () => {
+    const [initialInvestment, setInitialInvestment] = useState<number>(0);
     const [monthlyAmount, setMonthlyAmount] = useState<number>(1000);
     const [years, setYears] = useState<number>(10);
     const [annualReturn, setAnnualReturn] = useState<number>(7);
 
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
-    const [result, setResult] = useState<InvestmentResponse | null>(null);
+    const [result, setResult] = useState<ChartResponse | null>(null);
 
     const handleCalculate = async () => {
         setLoading(true);
         setError(null);
         try {
-            const data = await calculateInvestment(monthlyAmount, years, annualReturn);
+            const data = await generateInvestmentChart(monthlyAmount, years, annualReturn, initialInvestment);
             setResult(data);
         } catch (err: any) {
             setError(err.message || 'Failed to calculate results');
@@ -48,6 +49,38 @@ const CalculatorPage: React.FC = () => {
                         <h2 className="text-lg font-semibold text-slate-900 mb-6">Parameters</h2>
 
                         <div className="space-y-6">
+                            {/* Initial Investment */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    Initial Investment
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium">₪</span>
+                                    <label htmlFor="initial-investment-input" className="sr-only">Initial Investment Input</label>
+                                    <input
+                                        id="initial-investment-input"
+                                        type="number"
+                                        min="0"
+                                        max="100000"
+                                        value={initialInvestment}
+                                        onChange={(e) => setInitialInvestment(Number(e.target.value))}
+                                        className="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
+                                    />
+                                </div>
+                                <div className="mt-2">
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="100000"
+                                        step="1000"
+                                        value={initialInvestment}
+                                        onChange={(e) => setInitialInvestment(Number(e.target.value))}
+                                        aria-label="Initial Investment Slider"
+                                        className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+                                    />
+                                </div>
+                            </div>
+
                             {/* Monthly Amount */}
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -157,8 +190,7 @@ const CalculatorPage: React.FC = () => {
                                 totalEarnings={result.total_earnings}
                             />
                             <InvestmentChart
-                                yearlyBreakdown={result.yearly_breakdown}
-                                monthlyAmount={monthlyAmount}
+                                chartImage={result.chart_image}
                             />
                         </div>
                     ) : (

@@ -8,6 +8,7 @@ class InvestmentRequest(BaseModel):
     monthly_amount: float = Field(..., description="Monthly contribution in ILS", ge=100, le=50000)
     years: int = Field(..., description="Investment period in years", ge=1, le=30)
     annual_return: float = Field(..., description="Expected annual return percentage", ge=2, le=15)
+    initial_investment: float = Field(default=0, description="Initial lump sum investment in ILS", ge=0, le=100000)
 
     @field_validator('monthly_amount')
     def validate_amount(cls, v):

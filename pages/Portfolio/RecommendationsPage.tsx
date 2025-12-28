@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { getPortfolioRecommendation, PortfolioRecommendation } from '../../services/portfolioService';
 import AllocationChart from '../../components/Portfolio/AllocationChart';
-import { Loader2 } from 'lucide-react';
+import { AIProposalCard } from '../../components/Portfolio/AIProposalCard';
+import { Loader2, TrendingUp, Shield, Clock, BarChart3, Sparkles, CheckCircle2 } from 'lucide-react';
 
 const PROFILE_NAMES: Record<number, string> = {
     1: "Conservative",
@@ -10,177 +11,290 @@ const PROFILE_NAMES: Record<number, string> = {
     4: "Aggressive"
 };
 
+const PROFILE_DESCRIPTIONS: Record<number, string> = {
+    1: "Low risk, focus on capital preservation",
+    2: "Moderate risk, balanced growth and stability",
+    3: "Higher risk, growth-oriented strategy",
+    4: "Maximum risk, aggressive growth focus"
+};
+
 const RecommendationsPage: React.FC = () => {
     const [riskProfile, setRiskProfile] = useState<number>(2);
     const [loading, setLoading] = useState<boolean>(false);
     const [recommendation, setRecommendation] = useState<PortfolioRecommendation | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [proposalStatuses, setProposalStatuses] = useState<Record<string, 'pending' | 'accepted' | 'rejected'>>({});
 
     const handleGetRecommendation = async () => {
         setLoading(true);
         setError(null);
+        setProposalStatuses({});
         try {
             const data = await getPortfolioRecommendation(riskProfile);
             setRecommendation(data);
+            // Initialize all proposals as pending
+            const statuses: Record<string, 'pending' | 'accepted' | 'rejected'> = {};
+            data.ai_proposals.forEach(p => { statuses[p.id] = 'pending'; });
+            setProposalStatuses(statuses);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to fetch recommendation. Please try again.');
+            setError(err instanceof Error ? err.message : 'Failed to fetch recommendation.');
         } finally {
             setLoading(false);
         }
     };
 
+    const handleAcceptProposal = (id: string) => {
+        setProposalStatuses(prev => ({ ...prev, [id]: 'accepted' }));
+    };
+
+    const handleRejectProposal = (id: string) => {
+        setProposalStatuses(prev => ({ ...prev, [id]: 'rejected' }));
+    };
+
+    // Calculate adjusted metrics based on accepted proposals
+    const adjustedMetrics = useMemo(() => {
+        if (!recommendation) return null;
+
+        let returnAdjustment = 0;
+        let riskAdjustment = 0;
+
+        recommendation.ai_proposals.forEach(proposal => {
+            if (proposalStatuses[proposal.id] === 'accepted') {
+                returnAdjustment += proposal.impact_return;
+                riskAdjustment += proposal.impact_risk;
+            }
+        });
+
+        return {
+            expected_return: recommendation.expected_return + returnAdjustment,
+            volatility: Math.max(0, recommendation.volatility + riskAdjustment),
+            acceptedCount: Object.values(proposalStatuses).filter(s => s === 'accepted').length,
+            rejectedCount: Object.values(proposalStatuses).filter(s => s === 'rejected').length,
+            pendingCount: Object.values(proposalStatuses).filter(s => s === 'pending').length,
+        };
+    }, [recommendation, proposalStatuses]);
+
     return (
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px' }}>
-            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '24px', color: '#1f2937' }}>
-                Portfolio Recommendation
-            </h1>
-
-            {/* Input Section */}
-            <div style={{
-                backgroundColor: 'white',
-                padding: '24px',
-                borderRadius: '8px',
-                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
-                marginBottom: '32px'
-            }}>
-                <div style={{ marginBottom: '20px' }}>
-                    <label
-                        htmlFor="risk-slider"
-                        style={{ display: 'block', marginBottom: '8px', fontSize: '1.125rem', fontWeight: 500 }}
-                    >
-                        Risk Profile: <span style={{ color: '#3b82f6', fontWeight: 'bold' }}>{PROFILE_NAMES[riskProfile]}</span>
-                    </label>
-                    <input
-                        id="risk-slider"
-                        type="range"
-                        min="1"
-                        max="4"
-                        step="1"
-                        value={riskProfile}
-                        onChange={(e) => setRiskProfile(parseInt(e.target.value))}
-                        className="slider-input"
-                        style={{ width: '100%', maxWidth: '400px', cursor: 'pointer' }}
-                    />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '400px', fontSize: '0.875rem', color: '#6b7280', marginTop: '4px' }}>
-                        <span>Conservative</span>
-                        <span>Aggressive</span>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {/* Header */}
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
+                    <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl text-white">
+                        <Sparkles size={28} />
                     </div>
-                </div>
-
-                <button
-                    onClick={handleGetRecommendation}
-                    disabled={loading}
-                    style={{
-                        backgroundColor: '#3b82f6',
-                        color: 'white',
-                        padding: '10px 20px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        fontSize: '1rem',
-                        fontWeight: 500,
-                        cursor: loading ? 'not-allowed' : 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        opacity: loading ? 0.7 : 1,
-                        transition: 'background-color 0.2s'
-                    }}
-                >
-                    {loading && <Loader2 className="animate-spin" size={20} />}
-                    {loading ? 'Analyzing...' : 'Get Recommendation'}
-                </button>
-
-                {error && (
-                    <div style={{
-                        marginTop: '16px',
-                        padding: '12px',
-                        backgroundColor: '#fee2e2',
-                        color: '#991b1b',
-                        borderRadius: '6px'
-                    }}>
-                        {error}
-                    </div>
-                )}
+                    AI Portfolio Recommendations
+                </h1>
+                <p className="mt-2 text-slate-600">
+                    Get personalized investment recommendations powered by AI analysis
+                </p>
             </div>
 
-            {/* Results Section */}
-            {recommendation && (
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '24px'
-                }}>
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-                        gap: '24px'
-                    }}>
-                        {/* Allocation Chart */}
-                        <div style={{
-                            backgroundColor: 'white',
-                            padding: '24px',
-                            borderRadius: '8px',
-                            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
-                        }}>
-                            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '16px' }}>Target Allocation</h2>
-                            <AllocationChart
-                                stocks={recommendation.stocks}
-                                bonds={recommendation.bonds}
-                                cash={recommendation.cash}
-                            />
+            <div className="grid lg:grid-cols-12 gap-8">
+                {/* Left Column - Input & Analysis */}
+                <div className="lg:col-span-4 space-y-6">
+                    {/* Risk Profile Selector */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <h2 className="text-lg font-semibold text-slate-900 mb-4">Select Risk Profile</h2>
+
+                        <div className="space-y-3 mb-6">
+                            {[1, 2, 3, 4].map(profile => (
+                                <button
+                                    key={profile}
+                                    onClick={() => setRiskProfile(profile)}
+                                    className={`w-full p-4 rounded-xl border-2 text-left transition-all ${riskProfile === profile
+                                            ? 'border-blue-500 bg-blue-50'
+                                            : 'border-slate-200 hover:border-slate-300'
+                                        }`}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <span className={`font-semibold ${riskProfile === profile ? 'text-blue-700' : 'text-slate-800'}`}>
+                                                {PROFILE_NAMES[profile]}
+                                            </span>
+                                            <p className="text-sm text-slate-500 mt-0.5">
+                                                {PROFILE_DESCRIPTIONS[profile]}
+                                            </p>
+                                        </div>
+                                        {riskProfile === profile && (
+                                            <CheckCircle2 className="text-blue-500" size={24} />
+                                        )}
+                                    </div>
+                                </button>
+                            ))}
                         </div>
 
-                        {/* Allocation Table & Details */}
-                        <div style={{
-                            backgroundColor: 'white',
-                            padding: '24px',
-                            borderRadius: '8px',
-                            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
-                        }}>
-                            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '16px' }}>Portfolio Details</h2>
+                        <button
+                            onClick={handleGetRecommendation}
+                            disabled={loading}
+                            className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+                        >
+                            {loading ? (
+                                <>
+                                    <Loader2 className="animate-spin" size={20} />
+                                    Analyzing...
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles size={20} />
+                                    Get AI Analysis
+                                </>
+                            )}
+                        </button>
 
-                            <table style={{ width: '100%', marginBottom: '24px', borderCollapse: 'collapse' }}>
-                                <thead>
-                                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                        <th style={{ textAlign: 'left', padding: '12px 0', color: '#6b7280' }}>Asset Class</th>
-                                        <th style={{ textAlign: 'right', padding: '12px 0', color: '#6b7280' }}>Allocation</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                        <td style={{ padding: '12px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#22c55e' }}></div>
-                                            Stocks
-                                        </td>
-                                        <td style={{ textAlign: 'right', padding: '12px 0', fontWeight: 600 }}>{recommendation.stocks}%</td>
-                                    </tr>
-                                    <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                        <td style={{ padding: '12px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#3b82f6' }}></div>
-                                            Bonds
-                                        </td>
-                                        <td style={{ textAlign: 'right', padding: '12px 0', fontWeight: 600 }}>{recommendation.bonds}%</td>
-                                    </tr>
-                                    <tr>
-                                        <td style={{ padding: '12px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#6b7280' }}></div>
-                                            Cash
-                                        </td>
-                                        <td style={{ textAlign: 'right', padding: '12px 0', fontWeight: 600 }}>{recommendation.cash}%</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                        {error && (
+                            <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+                                {error}
+                            </div>
+                        )}
+                    </div>
 
-                            <div style={{ backgroundColor: '#f9fafb', padding: '16px', borderRadius: '6px' }}>
-                                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '8px', color: '#374151' }}>Strategy</h3>
-                                <p style={{ color: '#4b5563', lineHeight: '1.5' }}>
-                                    {recommendation.explanation}
-                                </p>
+                    {/* Financial Metrics */}
+                    {recommendation && (
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                            <h2 className="text-lg font-semibold text-slate-900 mb-4">Portfolio Metrics</h2>
+
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between p-3 bg-green-50 rounded-xl">
+                                    <div className="flex items-center gap-3">
+                                        <TrendingUp className="text-green-600" size={24} />
+                                        <div>
+                                            <p className="text-sm text-slate-600">Expected Return</p>
+                                            <p className="font-bold text-green-700">
+                                                {adjustedMetrics?.expected_return.toFixed(1)}% / year
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {adjustedMetrics && adjustedMetrics.expected_return !== recommendation.expected_return && (
+                                        <span className="text-xs bg-green-200 text-green-800 px-2 py-1 rounded-full">
+                                            +{(adjustedMetrics.expected_return - recommendation.expected_return).toFixed(1)}%
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center justify-between p-3 bg-orange-50 rounded-xl">
+                                    <div className="flex items-center gap-3">
+                                        <Shield className="text-orange-600" size={24} />
+                                        <div>
+                                            <p className="text-sm text-slate-600">Volatility (Risk)</p>
+                                            <p className="font-bold text-orange-700">
+                                                {adjustedMetrics?.volatility.toFixed(1)}%
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl">
+                                    <BarChart3 className="text-blue-600" size={24} />
+                                    <div>
+                                        <p className="text-sm text-slate-600">Sharpe Ratio</p>
+                                        <p className="font-bold text-blue-700">{recommendation.sharpe_ratio.toFixed(2)}</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-xl">
+                                    <Clock className="text-purple-600" size={24} />
+                                    <div>
+                                        <p className="text-sm text-slate-600">Min. Horizon</p>
+                                        <p className="font-bold text-purple-700">{recommendation.min_horizon_years} years</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
                 </div>
-            )}
+
+                {/* Right Column - Results */}
+                <div className="lg:col-span-8">
+                    {!recommendation ? (
+                        <div className="h-full min-h-[500px] flex flex-col items-center justify-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                            <Sparkles size={48} className="text-slate-300 mb-4" />
+                            <p className="text-lg font-medium text-slate-400">Select a profile and click "Get AI Analysis"</p>
+                            <p className="text-sm text-slate-400 mt-1">to receive personalized recommendations</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            {/* Allocation Section */}
+                            <div className="grid md:grid-cols-2 gap-6">
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                                    <h3 className="text-lg font-semibold text-slate-800 mb-4">Asset Allocation</h3>
+                                    <AllocationChart
+                                        stocks={recommendation.stocks}
+                                        bonds={recommendation.bonds}
+                                        cash={recommendation.cash}
+                                    />
+                                </div>
+
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                                    <h3 className="text-lg font-semibold text-slate-800 mb-4">Strategy Overview</h3>
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                                            <span className="flex items-center gap-2">
+                                                <span className="w-3 h-3 rounded-full bg-green-500"></span>
+                                                Stocks
+                                            </span>
+                                            <span className="font-bold text-slate-800">{recommendation.stocks}%</span>
+                                        </div>
+                                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                                            <span className="flex items-center gap-2">
+                                                <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+                                                Bonds
+                                            </span>
+                                            <span className="font-bold text-slate-800">{recommendation.bonds}%</span>
+                                        </div>
+                                        <div className="flex items-center justify-between py-2">
+                                            <span className="flex items-center gap-2">
+                                                <span className="w-3 h-3 rounded-full bg-gray-500"></span>
+                                                Cash
+                                            </span>
+                                            <span className="font-bold text-slate-800">{recommendation.cash}%</span>
+                                        </div>
+                                    </div>
+                                    <div className="mt-4 p-4 bg-slate-50 rounded-xl">
+                                        <p className="text-sm text-slate-600 leading-relaxed">{recommendation.explanation}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* AI Proposals Section */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                            <Sparkles className="text-purple-500" size={24} />
+                                            AI Investment Proposals
+                                        </h3>
+                                        <p className="text-sm text-slate-500 mt-1">
+                                            Review and accept/reject AI-generated optimization suggestions
+                                        </p>
+                                    </div>
+                                    {adjustedMetrics && (
+                                        <div className="flex gap-2">
+                                            <span className="px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded-full">
+                                                {adjustedMetrics.acceptedCount} accepted
+                                            </span>
+                                            <span className="px-3 py-1 bg-slate-100 text-slate-600 text-sm font-medium rounded-full">
+                                                {adjustedMetrics.pendingCount} pending
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    {recommendation.ai_proposals.map(proposal => (
+                                        <AIProposalCard
+                                            key={proposal.id}
+                                            proposal={proposal}
+                                            status={proposalStatuses[proposal.id] || 'pending'}
+                                            onAccept={handleAcceptProposal}
+                                            onReject={handleRejectProposal}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
 };

@@ -3,6 +3,7 @@ import { User, InvestmentItem } from '../types';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { supabase, SUPABASE_URL } from '../supabaseClient';
+import { getPrices } from '../services/marketService';
 import {
   LayoutDashboard,
   PieChart as PieChartIcon,
@@ -100,22 +101,51 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
 
       if (error) {
         console.error("Supabase Error:", error);
-        // Don't throw, just log so UI doesn't crash
         return;
       }
 
-      if (data) {
-        const formattedAssets: InvestmentItem[] = data.map((item: any) => ({
-          id: item.id.toString(),
-          symbol: item.symbol,
-          name: item.name,
-          type: item.type,
-          amount: parseFloat(item.amount) || 0,
-          value: (parseFloat(item.amount) || 0) * (parseFloat(item.price) || 0),
-          change: (Math.random() * 5) * (Math.random() > 0.5 ? 1 : -1), // Mock change
-          allocation: 0
-        }));
+      if (data && data.length > 0) {
+        // Get unique symbols
+        const symbols = [...new Set(data.map((item: any) => item.symbol.toUpperCase()))];
+
+        // Fetch current prices from market API
+        let currentPrices: Record<string, number | null> = {};
+        try {
+          currentPrices = await getPrices(symbols);
+        } catch (priceError) {
+          console.warn("Could not fetch live prices:", priceError);
+        }
+
+        const formattedAssets: InvestmentItem[] = data.map((item: any) => {
+          const amount = parseFloat(item.amount) || 0;
+          const purchasePrice = parseFloat(item.price) || 0;
+          const symbol = item.symbol.toUpperCase();
+          const currentPrice = currentPrices[symbol] ?? purchasePrice;
+
+          const costBasis = amount * purchasePrice;
+          const value = amount * currentPrice;
+          const profitLoss = value - costBasis;
+          const profitLossPercent = costBasis > 0 ? (profitLoss / costBasis) * 100 : 0;
+
+          return {
+            id: item.id.toString(),
+            symbol: symbol,
+            name: item.name,
+            type: item.type,
+            amount: amount,
+            purchasePrice: purchasePrice,
+            currentPrice: currentPrice,
+            costBasis: costBasis,
+            value: value,
+            profitLoss: profitLoss,
+            profitLossPercent: profitLossPercent,
+            change: currentPrices[symbol] ? profitLossPercent : 0,
+            allocation: 0
+          };
+        });
         setAssets(formattedAssets);
+      } else {
+        setAssets([]);
       }
     } catch (error) {
       console.error('Unexpected error fetching assets:', error);
@@ -127,14 +157,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
   // Derived Stats
   const stats = useMemo(() => {
     const totalValue = assets.reduce((sum, item) => sum + item.value, 0);
-    const totalGain = totalValue * 0.12;
+    const totalCostBasis = assets.reduce((sum, item) => sum + (item.costBasis || 0), 0);
+    const totalGain = totalValue - totalCostBasis;
+    const totalGainPercent = totalCostBasis > 0 ? (totalGain / totalCostBasis) * 100 : 0;
 
     return {
       totalValue,
+      totalCostBasis,
       totalGain,
-      totalGainPercent: totalValue > 0 ? 12.5 : 0,
-      dayChange: totalValue * 0.015,
-      dayChangePercent: 1.5
+      totalGainPercent,
+      dayChange: totalGain * 0.05, // Approximation
+      dayChangePercent: totalGainPercent * 0.05
     };
   }, [assets]);
 
@@ -151,8 +184,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
       name: formData.name,
       type: formData.type as any,
       amount: amount,
+      purchasePrice: price,
+      currentPrice: price, // Will be updated on refresh
+      costBasis: amount * price,
       value: amount * price,
-      change: (Math.random() * 5) * (Math.random() > 0.5 ? 1 : -1),
+      profitLoss: 0,
+      profitLossPercent: 0,
+      change: 0,
       allocation: 0
     };
 
@@ -559,9 +597,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
                       <thead>
                         <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
                           <th className="px-6 py-4 font-semibold">Asset</th>
-                          <th className="px-6 py-4 font-semibold">Price</th>
-                          <th className="px-6 py-4 font-semibold">Balance</th>
-                          <th className="px-6 py-4 font-semibold">24h Change</th>
+                          <th className="px-6 py-4 font-semibold">Purchase Price</th>
+                          <th className="px-6 py-4 font-semibold">Current Price</th>
+                          <th className="px-6 py-4 font-semibold">Value</th>
+                          <th className="px-6 py-4 font-semibold">Gain/Loss</th>
                           <th className="px-6 py-4 font-semibold">Allocation</th>
                           <th className="px-6 py-4 font-semibold">Actions</th>
                         </tr>
@@ -569,6 +608,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
                       <tbody className="divide-y divide-slate-100">
                         {assets.map((asset) => {
                           const allocation = stats.totalValue > 0 ? (asset.value / stats.totalValue) * 100 : 0;
+                          const isProfit = (asset.profitLoss || 0) >= 0;
                           return (
                             <tr key={asset.id} className="hover:bg-slate-50/50 transition-colors">
                               <td className="px-6 py-4">
@@ -582,18 +622,32 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-6 py-4 text-sm text-slate-600 font-medium">
-                                ${(asset.value / asset.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                              <td className="px-6 py-4">
+                                <p className="text-sm font-medium text-slate-600">
+                                  ${asset.purchasePrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                                </p>
+                                <p className="text-xs text-slate-400">per unit</p>
                               </td>
                               <td className="px-6 py-4">
-                                <p className="text-sm font-semibold text-slate-900">${asset.value.toLocaleString()}</p>
+                                <p className={`text-sm font-semibold ${asset.currentPrice && asset.currentPrice > (asset.purchasePrice || 0) ? 'text-emerald-600' : asset.currentPrice && asset.currentPrice < (asset.purchasePrice || 0) ? 'text-red-500' : 'text-slate-900'}`}>
+                                  ${asset.currentPrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                                </p>
+                                <p className="text-xs text-slate-400">live price</p>
+                              </td>
+                              <td className="px-6 py-4">
+                                <p className="text-sm font-semibold text-slate-900">
+                                  ${asset.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </p>
                                 <p className="text-xs text-slate-500">{asset.amount} units</p>
                               </td>
                               <td className="px-6 py-4">
-                                <div className={`inline-flex items-center text-sm font-medium ${asset.change >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                  {asset.change >= 0 ? <TrendingUp size={14} className="mr-1" /> : <TrendingDown size={14} className="mr-1" />}
-                                  {Math.abs(asset.change).toFixed(2)}%
+                                <div className={`inline-flex items-center text-sm font-bold ${isProfit ? 'text-emerald-600' : 'text-red-500'}`}>
+                                  {isProfit ? <TrendingUp size={14} className="mr-1" /> : <TrendingDown size={14} className="mr-1" />}
+                                  {isProfit ? '+' : ''}${(asset.profitLoss || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </div>
+                                <p className={`text-xs font-medium ${isProfit ? 'text-emerald-500' : 'text-red-400'}`}>
+                                  {isProfit ? '+' : ''}{(asset.profitLossPercent || 0).toFixed(2)}%
+                                </p>
                               </td>
                               <td className="px-6 py-4">
                                 <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">

@@ -1,7 +1,7 @@
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, portfolio, investment
+from app.routers import auth, portfolio, investment, market
 from app.config import get_settings
 
 # Setup logging
@@ -29,6 +29,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(portfolio.router, prefix="/api/v1")
 app.include_router(investment.router, prefix="/api/v1")
+app.include_router(market.router, prefix="/api/v1")
 
 @app.get("/health")
 def health_check():
