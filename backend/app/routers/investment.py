@@ -78,17 +78,17 @@ async def generate_chart(request: InvestmentRequest):
         
         # Formatting
         ax.set_xlabel('Years', fontsize=12, fontweight='bold')
-        ax.set_ylabel('Amount (₪)', fontsize=12, fontweight='bold')
+        ax.set_ylabel('Amount ($)', fontsize=12, fontweight='bold')
         ax.set_title(f'Investment Growth Over {request.years} Years (at {request.annual_return}% annual return)', 
                      fontsize=14, fontweight='bold', pad=15)
         
         # Format y-axis as currency
         def format_ils(x, pos):
             if x >= 1000000:
-                return f'₪{x/1000000:.1f}M'
+                return f'${x/1000000:.1f}M'
             elif x >= 1000:
-                return f'₪{x/1000:.0f}k'
-            return f'₪{x:.0f}'
+                return f'${x/1000:.0f}k'
+            return f'${x:.0f}'
         
         ax.yaxis.set_major_formatter(plt.FuncFormatter(format_ils))
         

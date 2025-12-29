@@ -13,7 +13,7 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
     totalEarnings
 }) => {
     const formatCurrency = (value: number) => {
-        return `₪${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+        return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
     };
 
     return (

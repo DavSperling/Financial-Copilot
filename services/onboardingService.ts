@@ -69,6 +69,8 @@ export async function saveOnboardingProgress(
     if (data.age !== undefined) profileData.age = data.age;
     if (data.experience !== undefined) profileData.investment_experience = data.experience;
     if (data.riskTolerance !== undefined) profileData.risk_tolerance = data.riskTolerance;
+    if (data.riskTolerance !== undefined) profileData.risk_tolerance = data.riskTolerance;
+    if (data.initialInvestment !== undefined) profileData.initial_investment = data.initialInvestment;
     if (data.monthlyBudget !== undefined) profileData.monthly_budget = data.monthlyBudget;
     if (data.investmentGoals !== undefined) profileData.investment_goals = data.investmentGoals as any;
 
@@ -80,7 +82,7 @@ export async function saveOnboardingProgress(
     if (profileError) throw profileError;
 
     // Prepare preferences data (if applicable)
-    if (data.sectors || data.countries !== undefined ) {
+    if (data.sectors || data.countries !== undefined) {
         const preferencesData: Partial<InvestmentPreferences> = {
             user_id: user.id,
         };

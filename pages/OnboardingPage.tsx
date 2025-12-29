@@ -60,6 +60,8 @@ export function OnboardingPage({ onComplete, onNavigate }: OnboardingPageProps) 
                         restoredData.experience = status.profile.investment_experience;
                     if (status.profile.risk_tolerance)
                         restoredData.riskTolerance = status.profile.risk_tolerance;
+                    if (status.profile.risk_tolerance)
+                        restoredData.riskTolerance = status.profile.risk_tolerance;
                     if (status.profile.initial_investment)
                         restoredData.initialInvestment = status.profile.initial_investment;
                     if (status.profile.monthly_budget)
@@ -283,7 +285,7 @@ export function OnboardingPage({ onComplete, onNavigate }: OnboardingPageProps) 
                                 min={1000}
                                 max={1000000}
                                 step={1000}
-                                formatValue={(val) => `${val.toLocaleString('he-IL')} ₪`}
+                                formatValue={(val) => `$${val.toLocaleString()}`}
                             />
                         </QuestionContainer>
                     )}
@@ -300,7 +302,7 @@ export function OnboardingPage({ onComplete, onNavigate }: OnboardingPageProps) 
                                 min={100}
                                 max={10000}
                                 step={100}
-                                formatValue={(val) => `${val.toLocaleString('he-IL')} ₪`}
+                                formatValue={(val) => `$${val.toLocaleString()}`}
                             />
                         </QuestionContainer>
                     )}
@@ -394,11 +396,11 @@ export function OnboardingPage({ onComplete, onNavigate }: OnboardingPageProps) 
                                 />
                                 <SummaryItem
                                     label="Initial Investment"
-                                    value={`${data.initialInvestment?.toLocaleString('he-IL')} ₪`}
+                                    value={`$${data.initialInvestment?.toLocaleString()}`}
                                 />
                                 <SummaryItem
                                     label="Monthly Budget"
-                                    value={`${data.monthlyBudget?.toLocaleString('he-IL')} ₪`}
+                                    value={`$${data.monthlyBudget?.toLocaleString()}`}
                                 />
                                 <SummaryItem
                                     label="Goals"

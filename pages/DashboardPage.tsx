@@ -61,9 +61,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [totalCashInjected, setTotalCashInjected] = useState<number>(0);
 
   // State for Assets
   const [assets, setAssets] = useState<InvestmentItem[]>([]);
+  const [buyingPower, setBuyingPower] = useState<number>(0);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -76,8 +78,74 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
 
   // Fetch Assets from Supabase
   useEffect(() => {
-    fetchAssets();
+    if (user?.id) {
+      fetchData();
+    }
   }, [user]);
+
+  const fetchData = async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    await Promise.all([fetchAssets(), fetchProfileAndCalculateCash()]);
+    setLoading(false);
+  };
+
+  const fetchProfileAndCalculateCash = async () => {
+    try {
+      // Fetch profile for investment settings
+      const { data: profile, error } = await supabase
+        .from('user_profiles')
+        .select('initial_investment, monthly_budget, created_at')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching profile:', error);
+        return;
+      }
+
+      if (profile) {
+        const initial = profile.initial_investment || 0;
+        const monthly = profile.monthly_budget || 0;
+        const createdAt = new Date(profile.created_at);
+        const now = new Date();
+
+        // Calculate months passed since creation where the 1st of the month has passed
+        let monthsPassed = 0;
+        let currentCheck = new Date(createdAt);
+
+        // Move to next month's 1st
+        if (currentCheck.getDate() > 1) {
+          currentCheck.setMonth(currentCheck.getMonth() + 1);
+          currentCheck.setDate(1);
+        } else {
+          // If created on the 1st, does it count immediately? 
+          // "Que tous les premier du mois tu rajoute" -> typically means subsequent 1sts.
+          // Let's assume on creation you get initial, and then every 1st you get monthly.
+          // If created on 1st, maybe wait for next month or count it? 
+          // Let's stick to: Initial is Day 0. Monthly is added on 1st of subsequent months.
+          currentCheck.setMonth(currentCheck.getMonth() + 1);
+          currentCheck.setDate(1);
+        }
+        currentCheck.setHours(0, 0, 0, 0);
+
+        while (currentCheck <= now) {
+          monthsPassed++;
+          currentCheck.setMonth(currentCheck.getMonth() + 1);
+        }
+
+        const totalCashInjected = initial + (monthly * monthsPassed);
+
+        // We need total invested calculated from assets, which might not be updated in state yet if running in parallel
+        // So we will calculate it here or rely on useEffect dependecies. 
+        // Better: separate the buying power calc to depend on 'assets' and 'profile' state. 
+        // actually, let's just save the injected cash to state and calc buying power in useMemo or useEffect.
+        setTotalCashInjected(totalCashInjected);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const fetchAssets = async () => {
     // Basic validation check
@@ -91,7 +159,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
       return;
     }
 
-    setLoading(true);
+    // setLoading(true); // Handled in fetchData
     try {
       const { data, error } = await supabase
         .from('assets')
@@ -150,7 +218,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
     } catch (error) {
       console.error('Unexpected error fetching assets:', error);
     } finally {
-      setLoading(false);
+      // setLoading(false);
     }
   };
 
@@ -167,9 +235,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
       totalGain,
       totalGainPercent,
       dayChange: totalGain * 0.05, // Approximation
-      dayChangePercent: totalGainPercent * 0.05
+      dayChangePercent: totalGainPercent * 0.05,
+      buyingPower: Math.max(0, totalCashInjected - totalCostBasis)
     };
-  }, [assets]);
+  }, [assets, totalCashInjected]);
 
   const handleAddAsset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -502,7 +571,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
                 />
                 <StatCard
                   label="Buying Power"
-                  value="$0.00"
+                  value={`$${stats.buyingPower.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   subValue="Available cash"
                   icon={<Wallet className="text-slate-600" size={24} />}
                 />

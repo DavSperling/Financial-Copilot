@@ -55,7 +55,7 @@ const CalculatorPage: React.FC = () => {
                                     Initial Investment
                                 </label>
                                 <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium">₪</span>
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium">$</span>
                                     <label htmlFor="initial-investment-input" className="sr-only">Initial Investment Input</label>
                                     <input
                                         id="initial-investment-input"
@@ -87,7 +87,7 @@ const CalculatorPage: React.FC = () => {
                                     Monthly Investment
                                 </label>
                                 <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium">₪</span>
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium">$</span>
                                     <label htmlFor="monthly-amount-input" className="sr-only">Monthly Amount Input</label>
                                     <input
                                         id="monthly-amount-input"

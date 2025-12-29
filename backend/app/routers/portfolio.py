@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from app.services.portfolio_service import get_portfolio_recommendation
+from app.services.portfolio_service import get_portfolio_recommendation, get_stock_recommendations, add_asset_to_portfolio
+from app.schemas import StockRecommendation, RecommendationResponse, AcceptRecommendationRequest
 
 router = APIRouter(
     prefix="/recommendations",
@@ -45,3 +46,31 @@ async def get_recommendation(
         return recommendation
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/stocks", response_model=RecommendationResponse)
+async def get_stocks(
+    profile: int = Query(..., ge=1, le=4, description="Risk profile score (1-4)"),
+    user_id: Optional[str] = Query(None, description="User ID for budget filtering")
+):
+    """
+    Get a list of specific stock recommendations for the risk profile.
+    If user_id is provided, filters stocks based on affordability (Initial Investment - Current Holdings).
+    """
+    result = get_stock_recommendations(profile, user_id)
+    # result is a dict matching RecommendationResponse
+    if not result["recommendations"] and user_id:
+         # Loophole: if filtering removed everything, we still return empty list + budget info
+         pass
+         
+    return result
+
+@router.post("/assets")
+async def add_asset(request: AcceptRecommendationRequest):
+    """
+    Accept a recommendation and add it to user's assets.
+    """
+    try:
+        result = add_asset_to_portfolio(request)
+        return {"message": "Asset added successfully", "asset": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

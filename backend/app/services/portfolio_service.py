@@ -1,4 +1,14 @@
-from typing import Dict, Union, List
+from typing import Dict, Union, List, Any
+import yfinance as yf
+from supabase import create_client, Client
+from app.config import get_settings
+from app.services.recommendation_data import RISK_LEVEL_STOCKS
+from app.schemas import AcceptRecommendationRequest
+
+settings = get_settings()
+# Initialize Supabase Admin Client for database operations
+supabase_admin: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+
 
 def get_portfolio_recommendation(risk_profile: int) -> Dict[str, Union[str, int, float, List]]:
     """
@@ -217,3 +227,186 @@ def get_portfolio_recommendation(risk_profile: int) -> Dict[str, Union[str, int,
     }
 
     return allocations[risk_profile]
+
+
+def get_stock_recommendations(risk_profile: int, user_id: str = None) -> Dict[str, Any]:
+    """
+    Get list of real stock recommendations for a given risk profile.
+    Fetches real-time prices using yfinance.
+    Now filters based on user's remaining budget.
+    """
+    remaining_budget = 1000000.0 # Default High budget if no user
+    
+    if user_id:
+        try:
+            # 1. Fetch User Profile for Initial Investment
+            profile_response = supabase_admin.table("user_profiles").select("initial_investment").eq("user_id", user_id).execute()
+            if profile_response.data:
+                initial_investment = float(profile_response.data[0].get("initial_investment") or 0)
+                
+                # 2. Fetch Assets for Total Invested
+                assets_response = supabase_admin.table("assets").select("amount, price").eq("user_id", user_id).execute()
+                total_invested = sum(float(a["amount"]) * float(a["price"]) for a in assets_response.data)
+                
+                remaining_budget = max(0, initial_investment - total_invested)
+            else:
+                 # If no profile found, assume 0 or handle logic?
+                 # Let's assume infinite for now so we don't block fresh users without profile
+                 pass
+        except Exception as e:
+            print(f"Error calculating budget: {e}")
+
+    if risk_profile not in RISK_LEVEL_STOCKS:
+        return {"remaining_budget": remaining_budget, "recommendations": []}
+
+    stocks = RISK_LEVEL_STOCKS[risk_profile]
+    tickers = [s["ticker"] for s in stocks]
+    
+    try:
+        data = yf.download(tickers, period="1d", progress=False)
+        
+        results = []
+        for stock in stocks:
+            ticker = stock["ticker"]
+            price = 0.0
+            try:
+                # Handle yfinance multi-index columns vs single index
+                # When multiple tickers, 'Close' is a DF with tickers as columns.
+                # When single, it might be a Series.
+                
+                # Safer individual fetch loop fallback if bulk structure varies
+                if not data.empty:
+                    if isinstance(data.columns, pd.MultiIndex):
+                         # Not handled in this snippet, falling back to per-ticker fetch for robustness
+                         pass 
+                
+                # Let's use individual fetches to be 100% robust against dataframe structure changes
+                ticker_obj = yf.Ticker(ticker)
+                hist = ticker_obj.history(period="1d")
+                if not hist.empty:
+                    price = float(hist['Close'].iloc[-1])
+            except Exception:
+                # Fallback to download if Ticker fails
+                 try:
+                    df = yf.download(ticker, period="1d", progress=False)
+                    if not df.empty:
+                         price = float(df['Close'].iloc[-1])
+                 except:
+                    price = 0.0
+
+            if price > 0:
+                # Filter: Only include if price <= remaining_budget (only if user_id was provided)
+                # If user_id provided, strict filtering.
+                # Actually, maybe we should return all but mark them? 
+                # User request: "tu me propose des action que je peut achete" -> strict filter seems appropriate.
+                
+                # If budget is 0 (e.g. no profile set), maybe show all? 
+                # "initial_investment" default might be null.
+                # Let's show all if remaining_budget is essentially 0 (floating point issue) AND no user_id?
+                # But if user has $0 budget, we should probably show nothing or cheap stocks.
+                
+                # Interpretation: If remaining_budget > 0, filter. If 0 and user exists, filter (returns empty). 
+                # If user_id None, show all.
+                
+                if user_id:
+                     if price <= remaining_budget:
+                        results.append({
+                            "ticker": ticker,
+                            "name": stock["name"],
+                            "sector": stock["sector"],
+                            "explanation": stock["explanation"],
+                            "current_price": round(price, 2)
+                        })
+                else:
+                     results.append({
+                        "ticker": ticker,
+                        "name": stock["name"],
+                        "sector": stock["sector"],
+                        "explanation": stock["explanation"],
+                        "current_price": round(price, 2)
+                    })
+            
+        return {
+            "remaining_budget": remaining_budget if user_id else -1, # -1 indicates "unknown/unlimited"
+            "recommendations": results
+        }
+
+    except Exception as e:
+        print(f"Error in get_stock_recommendations: {e}")
+        return {"remaining_budget": remaining_budget, "recommendations": []}
+    """
+    Get list of real stock recommendations for a given risk profile.
+    Fetches real-time prices using yfinance.
+    """
+    if risk_profile not in RISK_LEVEL_STOCKS:
+        return []
+
+    stocks = RISK_LEVEL_STOCKS[risk_profile]
+    tickers = [s["ticker"] for s in stocks]
+    
+    try:
+        # Fetch prices in batch
+        # yf.Tickers might correspond to multiple tickers
+        # download is often faster for batch but requires parsing DataFrame. 
+        # For simplicity and reliability with current yfinance versions:
+        # We can iterate or use Tickers.
+        
+        # Using Tickers for metadata + price
+        # Note: fetching info can be slow. 
+        # faster approach: download '1d' data for all
+        data = yf.download(tickers, period="1d", progress=False)['Close']
+        
+        # If single ticker result is a Series, if multiple it's a DataFrame
+        # But yfinance behavior varies.
+        # Fallback loop is safest for 5 tickers to avoid parsing complexity
+        
+        results = []
+        for stock in stocks:
+            ticker = stock["ticker"]
+            price = 0.0
+            try:
+                # Try fast download of last 1 day
+                # This returns a DataFrame
+                df = yf.download(ticker, period="1d", progress=False)
+                if not df.empty:
+                    # Generic way to get the last Close value
+                     price = float(df['Close'].iloc[-1])
+            except Exception as e:
+                print(f"Error fetching {ticker}: {e}")
+                price = 0.0 # Indicate error or fallback
+
+            results.append({
+                "ticker": ticker,
+                "name": stock["name"],
+                "sector": stock["sector"],
+                "explanation": stock["explanation"],
+                "current_price": round(price, 2)
+            })
+            
+        return results
+
+    except Exception as e:
+        print(f"Error in get_stock_recommendations: {e}")
+        return []
+
+def add_asset_to_portfolio(request: AcceptRecommendationRequest) -> Dict[str, Any]:
+    """
+    Add a recommended asset to the user's portfolio.
+    """
+    try:
+        # Insert into assets table
+        data = {
+            "user_id": request.user_id,
+            "symbol": request.ticker,
+            "name": request.name,
+            "type": request.type,
+            "amount": request.amount,
+            "price": request.price
+        }
+        
+        response = supabase_admin.table("assets").insert(data).execute()
+        return response.data[0] if response.data else {}
+        
+    except Exception as e:
+        print(f"Error adding asset: {e}")
+        raise e

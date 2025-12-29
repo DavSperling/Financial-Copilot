@@ -1,8 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { getPortfolioRecommendation, PortfolioRecommendation } from '../../services/portfolioService';
 import AllocationChart from '../../components/Portfolio/AllocationChart';
-import { AIProposalCard } from '../../components/Portfolio/AIProposalCard';
-import { Loader2, TrendingUp, Shield, Clock, BarChart3, Sparkles, CheckCircle2 } from 'lucide-react';
+import { StockRecommendationCard } from '../../components/Portfolio/StockRecommendationCard';
+import { AddAssetModal } from '../../components/Portfolio/AddAssetModal';
+import { Loader2, TrendingUp, Shield, Clock, BarChart3, Sparkles, CheckCircle2, Wallet, AlertTriangle } from 'lucide-react';
+import { supabase } from '../../supabaseClient';
+import { addAssetToPortfolio, getStockRecommendations, StockRecommendation } from '../../services/portfolioService';
+import { User } from '@supabase/supabase-js';
 
 const PROFILE_NAMES: Record<number, string> = {
     1: "Conservative",
@@ -23,19 +27,41 @@ const RecommendationsPage: React.FC = () => {
     const [loading, setLoading] = useState<boolean>(false);
     const [recommendation, setRecommendation] = useState<PortfolioRecommendation | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [proposalStatuses, setProposalStatuses] = useState<Record<string, 'pending' | 'accepted' | 'rejected'>>({});
+
+    // New state for stocks
+    const [stockRecommendations, setStockRecommendations] = useState<StockRecommendation[]>([]);
+    const [stockStatuses, setStockStatuses] = useState<Record<string, 'pending' | 'accepted' | 'rejected'>>({});
+    const [user, setUser] = useState<User | null>(null);
+
+    // Budget & Modal state
+    const [remainingBudget, setRemainingBudget] = useState<number>(-1); // -1 means unknown/unlimited
+    const [selectedStock, setSelectedStock] = useState<StockRecommendation | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    React.useEffect(() => {
+        supabase.auth.getUser().then(({ data: { user } }) => {
+            setUser(user);
+        });
+    }, []);
 
     const handleGetRecommendation = async () => {
         setLoading(true);
         setError(null);
-        setProposalStatuses({});
         try {
             const data = await getPortfolioRecommendation(riskProfile);
             setRecommendation(data);
-            // Initialize all proposals as pending
-            const statuses: Record<string, 'pending' | 'accepted' | 'rejected'> = {};
-            data.ai_proposals.forEach(p => { statuses[p.id] = 'pending'; });
-            setProposalStatuses(statuses);
+
+            // Fetch Stock recommendations with user context for budget
+            const currentUserId = user?.id;
+            const stockResponse = await getStockRecommendations(riskProfile, currentUserId);
+
+            setStockRecommendations(stockResponse.recommendations);
+            setRemainingBudget(stockResponse.remaining_budget);
+
+            const sStatuses: Record<string, 'pending' | 'accepted' | 'rejected'> = {};
+            stockResponse.recommendations.forEach(s => { sStatuses[s.ticker] = 'pending'; });
+            setStockStatuses(sStatuses);
+
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to fetch recommendation.');
         } finally {
@@ -43,36 +69,55 @@ const RecommendationsPage: React.FC = () => {
         }
     };
 
-    const handleAcceptProposal = (id: string) => {
-        setProposalStatuses(prev => ({ ...prev, [id]: 'accepted' }));
+    // Open Modal instead of direct add
+    const onStockSelectInfo = (stock: StockRecommendation) => {
+        if (!user) {
+            alert("Please sign in to add assets.");
+            return;
+        }
+        setSelectedStock(stock);
+        setIsModalOpen(true);
     };
 
-    const handleRejectProposal = (id: string) => {
-        setProposalStatuses(prev => ({ ...prev, [id]: 'rejected' }));
+    const handleConfirmAddStock = async (quantity: number) => {
+        if (!user || !selectedStock) return;
+
+        try {
+            await addAssetToPortfolio({
+                user_id: user.id,
+                ticker: selectedStock.ticker,
+                name: selectedStock.name,
+                price: selectedStock.current_price,
+                amount: quantity,
+                type: 'Stock'
+            });
+            setStockStatuses(prev => ({ ...prev, [selectedStock.ticker]: 'accepted' }));
+
+            // Update local budget optimistically
+            if (remainingBudget !== -1) {
+                setRemainingBudget(prev => prev - (selectedStock.current_price * quantity));
+            }
+
+            setIsModalOpen(false);
+            setSelectedStock(null);
+        } catch (err: any) {
+            alert(`Failed to add asset: ${err.message}`);
+        }
     };
 
-    // Calculate adjusted metrics based on accepted proposals
+    const handleRejectStock = (ticker: string) => {
+        setStockStatuses(prev => ({ ...prev, [ticker]: 'rejected' }));
+    };
+
+    // Calculate adjusted metrics based solely on theoretical recommendation for now, since we removed proposals
     const adjustedMetrics = useMemo(() => {
         if (!recommendation) return null;
 
-        let returnAdjustment = 0;
-        let riskAdjustment = 0;
-
-        recommendation.ai_proposals.forEach(proposal => {
-            if (proposalStatuses[proposal.id] === 'accepted') {
-                returnAdjustment += proposal.impact_return;
-                riskAdjustment += proposal.impact_risk;
-            }
-        });
-
         return {
-            expected_return: recommendation.expected_return + returnAdjustment,
-            volatility: Math.max(0, recommendation.volatility + riskAdjustment),
-            acceptedCount: Object.values(proposalStatuses).filter(s => s === 'accepted').length,
-            rejectedCount: Object.values(proposalStatuses).filter(s => s === 'rejected').length,
-            pendingCount: Object.values(proposalStatuses).filter(s => s === 'pending').length,
+            expected_return: recommendation.expected_return,
+            volatility: recommendation.volatility,
         };
-    }, [recommendation, proposalStatuses]);
+    }, [recommendation]);
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -102,8 +147,8 @@ const RecommendationsPage: React.FC = () => {
                                     key={profile}
                                     onClick={() => setRiskProfile(profile)}
                                     className={`w-full p-4 rounded-xl border-2 text-left transition-all ${riskProfile === profile
-                                            ? 'border-blue-500 bg-blue-50'
-                                            : 'border-slate-200 hover:border-slate-300'
+                                        ? 'border-blue-500 bg-blue-50'
+                                        : 'border-slate-200 hover:border-slate-300'
                                         }`}
                                 >
                                     <div className="flex items-center justify-between">
@@ -255,42 +300,68 @@ const RecommendationsPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* AI Proposals Section */}
+                            {/* Recommended Stocks Section */}
                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                                 <div className="flex items-center justify-between mb-6">
                                     <div>
                                         <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                                            <Sparkles className="text-purple-500" size={24} />
-                                            AI Investment Proposals
+                                            <TrendingUp className="text-blue-600" size={24} />
+                                            Recommended Stocks
                                         </h3>
-                                        <p className="text-sm text-slate-500 mt-1">
-                                            Review and accept/reject AI-generated optimization suggestions
-                                        </p>
+                                        <div className="flex items-center gap-4 mt-1">
+                                            <p className="text-sm text-slate-500">
+                                                Top individual stock picks aligned with your {PROFILE_NAMES[riskProfile]} profile
+                                            </p>
+                                        </div>
                                     </div>
-                                    {adjustedMetrics && (
-                                        <div className="flex gap-2">
-                                            <span className="px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded-full">
-                                                {adjustedMetrics.acceptedCount} accepted
-                                            </span>
-                                            <span className="px-3 py-1 bg-slate-100 text-slate-600 text-sm font-medium rounded-full">
-                                                {adjustedMetrics.pendingCount} pending
-                                            </span>
+                                    {remainingBudget !== -1 && (
+                                        <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+                                            <Wallet size={16} className="text-slate-500" />
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-xs text-slate-500 font-medium">Remaining Budget</span>
+                                                <span className={`text-sm font-bold ${remainingBudget < 1000 ? 'text-orange-600' : 'text-slate-800'}`}>
+                                                    ${remainingBudget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
 
                                 <div className="grid md:grid-cols-2 gap-4">
-                                    {recommendation.ai_proposals.map(proposal => (
-                                        <AIProposalCard
-                                            key={proposal.id}
-                                            proposal={proposal}
-                                            status={proposalStatuses[proposal.id] || 'pending'}
-                                            onAccept={handleAcceptProposal}
-                                            onReject={handleRejectProposal}
+                                    {stockRecommendations.map(stock => (
+                                        <StockRecommendationCard
+                                            key={stock.ticker}
+                                            stock={stock}
+                                            status={stockStatuses[stock.ticker] || 'pending'}
+                                            onAccept={onStockSelectInfo}
+                                            onReject={handleRejectStock}
                                         />
                                     ))}
+                                    {stockRecommendations.length === 0 && (
+                                        <div className="col-span-2 text-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                            <AlertTriangle className="mx-auto text-slate-400 mb-2" size={24} />
+                                            {remainingBudget !== -1 && remainingBudget < 100 ? (
+                                                <p className="text-slate-500 font-medium">
+                                                    No stocks found within your remaining budget of ${remainingBudget.toFixed(2)}.
+                                                    <br />
+                                                    <span className="text-sm font-normal">Consider increasing your initial investment profile settings.</span>
+                                                </p>
+                                            ) : (
+                                                <p className="text-slate-500">Loading recommendations or no stocks match your criteria...</p>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
+
+                            {/* Modal */}
+                            <AddAssetModal
+                                isOpen={isModalOpen}
+                                onClose={() => setIsModalOpen(false)}
+                                stock={selectedStock}
+                                remainingBudget={remainingBudget !== -1 ? remainingBudget : 9999999}
+                                onConfirm={handleConfirmAddStock}
+                            />
                         </div>
                     )}
                 </div>

@@ -14,9 +14,6 @@ logger = logging.getLogger(__name__)
 # or if RLS allows anon insert but not read. 
 # For safety, we'll use service_role for the rate limit check/insert.
 supabase_admin: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
-print("\n\n\n\n\n\n")
-print(settings.SUPABASE_KEY)
-print("\n\n\n\n\n\n")
 supabase_anon: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
 
 RATE_LIMIT_HOURLY = 3

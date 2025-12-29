@@ -33,21 +33,21 @@ const TransactionsPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <p className="text-slate-500 text-sm font-medium mb-1">Total Savings</p>
-                    <h3 className="text-2xl font-bold text-slate-900">₪3,450.00</h3>
+                    <h3 className="text-2xl font-bold text-slate-900">$3,450.00</h3>
                     <span className="text-xs text-emerald-600 font-medium flex items-center mt-2">
                         <ArrowUpRight size={14} className="mr-1" /> +12.5% vs last month
                     </span>
                 </div>
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <p className="text-slate-500 text-sm font-medium mb-1">Total Income</p>
-                    <h3 className="text-2xl font-bold text-slate-900">₪5,200.00</h3>
+                    <h3 className="text-2xl font-bold text-slate-900">$5,200.00</h3>
                     <span className="text-xs text-emerald-600 font-medium flex items-center mt-2">
                         <ArrowUpRight size={14} className="mr-1" /> +2.1% vs last month
                     </span>
                 </div>
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <p className="text-slate-500 text-sm font-medium mb-1">Total Expenses</p>
-                    <h3 className="text-2xl font-bold text-slate-900">₪1,750.00</h3>
+                    <h3 className="text-2xl font-bold text-slate-900">$1,750.00</h3>
                     <span className="text-xs text-red-500 font-medium flex items-center mt-2">
                         <ArrowDownLeft size={14} className="mr-1" /> +5.3% vs last month
                     </span>
@@ -101,7 +101,7 @@ const TransactionsPage: React.FC = () => {
                                     </td>
                                     <td className={`px-6 py-4 text-right font-semibold text-sm ${tx.type === 'deposit' ? 'text-emerald-600' : 'text-slate-900'
                                         }`}>
-                                        {tx.type === 'deposit' ? '+' : '-'}₪{tx.amount.toLocaleString()}
+                                        {tx.type === 'deposit' ? '+' : '-'}${tx.amount.toLocaleString()}
                                     </td>
                                 </tr>
                             ))}

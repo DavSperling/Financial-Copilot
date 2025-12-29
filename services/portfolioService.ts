@@ -21,6 +21,28 @@ export interface PortfolioRecommendation {
     ai_proposals: AIProposal[];
 }
 
+export interface StockRecommendation {
+    ticker: string;
+    name: string;
+    sector: string;
+    current_price: number;
+    explanation: string;
+}
+
+export interface RecommendationResponse {
+    remaining_budget: number;
+    recommendations: StockRecommendation[];
+}
+
+export interface AcceptAssetRequest {
+    user_id: string; // We'll get this from auth context/session
+    ticker: string;
+    name: string;
+    price: number;
+    amount?: number;
+    type?: string;
+}
+
 const API_BASE_URL = 'http://localhost:8000/api/v1';
 
 export const getPortfolioRecommendation = async (profile: number): Promise<PortfolioRecommendation> => {
@@ -41,6 +63,46 @@ export const getPortfolioRecommendation = async (profile: number): Promise<Portf
         return data;
     } catch (error) {
         console.error('Failed to fetch portfolio recommendation:', error);
+        throw error;
+    }
+};
+
+export const getStockRecommendations = async (profile: number, userId?: string): Promise<RecommendationResponse> => {
+    try {
+        const url = `${API_BASE_URL}/recommendations/stocks?profile=${profile}${userId ? `&user_id=${userId}` : ''}`;
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch stocks: ${response.statusText}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('Error fetching stock recommendations:', error);
+        throw error;
+    }
+};
+
+export const addAssetToPortfolio = async (assetRequest: AcceptAssetRequest): Promise<void> => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/recommendations/assets`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(assetRequest)
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to add asset');
+        }
+    } catch (error) {
+        console.error('Error adding asset:', error);
         throw error;
     }
 };
