@@ -4,6 +4,8 @@ import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { supabase, SUPABASE_URL } from '../supabaseClient';
 import { getPrices } from '../services/marketService';
+import { closePosition, getPortfolioHistory, PortfolioHistoryPoint } from '../services/transactionService';
+import { getPortfolioAnalysis, PortfolioAnalysis } from '../services/analyticsService';
 import {
   LayoutDashboard,
   PieChart as PieChartIcon,
@@ -20,7 +22,12 @@ import {
   Plus,
   Trash2,
   X,
-  RefreshCw
+  RefreshCw,
+  DollarSign as SellIcon,
+  BarChart3,
+  AlertTriangle,
+  CheckCircle2,
+  Loader2
 } from 'lucide-react';
 import {
   AreaChart,
@@ -37,6 +44,7 @@ import { Settings } from './Settings';
 import RecommendationsPage from './Portfolio/RecommendationsPage';
 import CalculatorPage from './Investment/CalculatorPage';
 import TransactionsPage from './TransactionsPage';
+import { ChatWidget } from '../components/ChatWidget';
 
 interface DashboardPageProps {
   user: User | null;
@@ -47,25 +55,32 @@ interface DashboardPageProps {
   onToggleTheme: () => void;
 }
 
-// Mock Chart Data
-const CHART_DATA = [
-  { name: 'Jan', value: 4000 },
-  { name: 'Feb', value: 3000 },
-  { name: 'Mar', value: 2000 },
-  { name: 'Apr', value: 2780 },
-  { name: 'May', value: 1890 },
-  { name: 'Jun', value: 2390 },
-];
+// Chart data will be fetched dynamically
+interface ChartDataPoint {
+  name: string;
+  value: number;
+  invested: number;
+}
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, onNavigate, currentView, isDarkMode, onToggleTheme }) => {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSellModalOpen, setIsSellModalOpen] = useState(false);
+  const [selectedAssetForSale, setSelectedAssetForSale] = useState<InvestmentItem | null>(null);
+  const [sellPrice, setSellPrice] = useState<string>('');
+  const [sellingLoading, setSellingLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [totalCashInjected, setTotalCashInjected] = useState<number>(0);
 
   // State for Assets
   const [assets, setAssets] = useState<InvestmentItem[]>([]);
   const [buyingPower, setBuyingPower] = useState<number>(0);
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+
+  // Analytics Modal State
+  const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
+  const [analyticsData, setAnalyticsData] = useState<PortfolioAnalysis | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -86,8 +101,27 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
   const fetchData = async () => {
     if (!user?.id) return;
     setLoading(true);
-    await Promise.all([fetchAssets(), fetchProfileAndCalculateCash()]);
+    await Promise.all([fetchAssets(), fetchProfileAndCalculateCash(), fetchPortfolioHistory()]);
     setLoading(false);
+  };
+
+  const fetchPortfolioHistory = async () => {
+    if (!user?.id) return;
+    try {
+      const response = await getPortfolioHistory(user.id);
+      console.log('Portfolio history response:', response);
+      const chartPoints: ChartDataPoint[] = response.history.map(h => ({
+        name: h.month,
+        value: h.value,
+        invested: h.invested
+      }));
+      console.log('Chart points:', chartPoints);
+      setChartData(chartPoints);
+    } catch (error) {
+      console.error('Error fetching portfolio history:', error);
+      // Set default chart data if API fails
+      setChartData([]);
+    }
   };
 
   const fetchProfileAndCalculateCash = async () => {
@@ -313,8 +347,66 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
     }
   };
 
+  const openSellModal = (asset: InvestmentItem) => {
+    setSelectedAssetForSale(asset);
+    setSellPrice(asset.currentPrice?.toString() || asset.purchasePrice?.toString() || '');
+    setIsSellModalOpen(true);
+  };
+
+  const handleSellAsset = async () => {
+    if (!user?.id || !selectedAssetForSale || !sellPrice) return;
+
+    setSellingLoading(true);
+    try {
+      const result = await closePosition({
+        user_id: user.id,
+        asset_id: parseInt(selectedAssetForSale.id),
+        sale_price: parseFloat(sellPrice)
+      });
+
+      // Remove asset from local state
+      setAssets(assets.filter(a => a.id !== selectedAssetForSale.id));
+
+      // Close modal and reset
+      setIsSellModalOpen(false);
+      setSelectedAssetForSale(null);
+      setSellPrice('');
+
+      // Show success message
+      const gainText = result.profit_loss >= 0 ? `+$${result.profit_loss}` : `-$${Math.abs(result.profit_loss)}`;
+      alert(`Position closed! ${gainText} (${result.profit_loss_percent.toFixed(2)}%)`);
+
+      // Refresh data
+      fetchData();
+    } catch (err: any) {
+      alert(`Failed to close position: ${err.message}`);
+    } finally {
+      setSellingLoading(false);
+    }
+  };
+
+  const handleAnalyzePortfolio = async () => {
+    if (!user?.id) return;
+
+    setAnalyticsLoading(true);
+    setIsAnalyticsModalOpen(true);
+
+    try {
+      const analysis = await getPortfolioAnalysis(user.id);
+      setAnalyticsData(analysis);
+    } catch (error: any) {
+      console.error('Error analyzing portfolio:', error);
+      setAnalyticsData(null);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden relative">
+
+      {/* AI Chat Widget */}
+      <ChatWidget userId={user?.id} />
 
       {/* Add Asset Modal */}
       {isAddModalOpen && (
@@ -400,6 +492,302 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Sell Asset Modal */}
+      {isSellModalOpen && selectedAssetForSale && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-emerald-50">
+              <h3 className="text-lg font-bold text-emerald-800 font-display">Sell Position</h3>
+              <button
+                onClick={() => {
+                  setIsSellModalOpen(false);
+                  setSelectedAssetForSale(null);
+                  setSellPrice('');
+                }}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+                aria-label="Close modal"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Asset Info */}
+              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600">
+                  {selectedAssetForSale.symbol.substring(0, 2)}
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-900">{selectedAssetForSale.symbol}</p>
+                  <p className="text-sm text-slate-500">{selectedAssetForSale.name}</p>
+                </div>
+              </div>
+
+              {/* Position Details */}
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="p-3 bg-slate-50 rounded-xl">
+                  <p className="text-slate-500">Quantity</p>
+                  <p className="font-semibold text-slate-900">{selectedAssetForSale.amount} units</p>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl">
+                  <p className="text-slate-500">Purchase Price</p>
+                  <p className="font-semibold text-slate-900">${selectedAssetForSale.purchasePrice?.toFixed(2)}</p>
+                </div>
+              </div>
+
+              {/* Sale Price Input */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Sale Price per Unit</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={sellPrice}
+                  onChange={(e) => setSellPrice(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none text-lg font-semibold"
+                  placeholder="0.00"
+                />
+              </div>
+
+              {/* Profit/Loss Preview */}
+              {sellPrice && (
+                <div className={`p-4 rounded-xl ${parseFloat(sellPrice) >= (selectedAssetForSale.purchasePrice || 0)
+                  ? 'bg-emerald-50 border border-emerald-200'
+                  : 'bg-red-50 border border-red-200'
+                  }`}>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-slate-600">Estimated Profit/Loss</span>
+                    <span className={`font-bold text-lg ${parseFloat(sellPrice) >= (selectedAssetForSale.purchasePrice || 0)
+                      ? 'text-emerald-600'
+                      : 'text-red-600'
+                      }`}>
+                      {parseFloat(sellPrice) >= (selectedAssetForSale.purchasePrice || 0) ? '+' : ''}
+                      ${(((parseFloat(sellPrice) || 0) - (selectedAssetForSale.purchasePrice || 0)) * selectedAssetForSale.amount).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center mt-1">
+                    <span className="text-xs text-slate-500">Percentage</span>
+                    <span className={`text-sm font-medium ${parseFloat(sellPrice) >= (selectedAssetForSale.purchasePrice || 0)
+                      ? 'text-emerald-600'
+                      : 'text-red-600'
+                      }`}>
+                      {selectedAssetForSale.purchasePrice
+                        ? (((parseFloat(sellPrice) || 0) - selectedAssetForSale.purchasePrice) / selectedAssetForSale.purchasePrice * 100).toFixed(2)
+                        : '0'}%
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-4 flex gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  fullWidth
+                  onClick={() => {
+                    setIsSellModalOpen(false);
+                    setSelectedAssetForSale(null);
+                    setSellPrice('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  fullWidth
+                  onClick={handleSellAsset}
+                  disabled={sellingLoading || !sellPrice}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {sellingLoading ? 'Selling...' : 'Confirm Sale'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Portfolio Analytics Modal */}
+      {isAnalyticsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-200">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-indigo-500 to-purple-600">
+              <div className="flex items-center gap-3">
+                <BarChart3 className="text-white" size={24} />
+                <h3 className="text-lg font-bold text-white font-display">Portfolio Analysis</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setIsAnalyticsModalOpen(false);
+                  setAnalyticsData(null);
+                }}
+                className="text-white/80 hover:text-white transition-colors"
+                aria-label="Close modal"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              {analyticsLoading ? (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <Loader2 className="animate-spin text-indigo-500 mb-4" size={48} />
+                  <p className="text-slate-500 text-lg">Analyzing your portfolio...</p>
+                  <p className="text-slate-400 text-sm mt-1">Fetching sector data and calculating metrics</p>
+                </div>
+              ) : analyticsData ? (
+                <div className="space-y-8">
+                  {/* Summary Header */}
+                  <div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl p-6">
+                    <h4 className="text-xl font-bold text-slate-800 mb-2">{analyticsData.summary}</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                      <div>
+                        <p className="text-xs text-slate-500 uppercase tracking-wide">Total Value</p>
+                        <p className="text-lg font-bold text-slate-900">${analyticsData.total_value.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 uppercase tracking-wide">Invested</p>
+                        <p className="text-lg font-bold text-slate-700">${analyticsData.total_invested.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 uppercase tracking-wide">Total Gain/Loss</p>
+                        <p className={`text-lg font-bold ${analyticsData.total_gain >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {analyticsData.total_gain >= 0 ? '+' : ''}${analyticsData.total_gain.toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 uppercase tracking-wide">Return</p>
+                        <p className={`text-lg font-bold ${analyticsData.total_gain_percent >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {analyticsData.total_gain_percent >= 0 ? '+' : ''}{analyticsData.total_gain_percent.toFixed(2)}%
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Two Column Layout */}
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {/* Sector Breakdown */}
+                    <div className="bg-white border border-slate-200 rounded-xl p-6">
+                      <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                        <PieChartIcon size={18} className="text-indigo-500" />
+                        Sector Breakdown
+                      </h4>
+                      <div className="space-y-3">
+                        {analyticsData.sectors.map((sector, idx) => (
+                          <div key={idx}>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-slate-700">{sector.sector}</span>
+                              <span className="text-slate-500">{sector.weight}% (${sector.value.toLocaleString()})</span>
+                            </div>
+                            <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-500"
+                                style={{ width: `${sector.weight}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Risk Metrics */}
+                    <div className="bg-white border border-slate-200 rounded-xl p-6">
+                      <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                        {analyticsData.risk_metrics.concentration_risk === 'High' ? (
+                          <AlertTriangle size={18} className="text-amber-500" />
+                        ) : (
+                          <CheckCircle2 size={18} className="text-emerald-500" />
+                        )}
+                        Risk Assessment
+                      </h4>
+
+                      {/* Diversification Score */}
+                      <div className="mb-6">
+                        <div className="flex justify-between text-sm mb-2">
+                          <span className="text-slate-600">Diversification Score</span>
+                          <span className="font-bold text-slate-800">{analyticsData.risk_metrics.diversification_score}/100</span>
+                        </div>
+                        <div className="h-4 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${analyticsData.risk_metrics.diversification_score >= 70 ? 'bg-emerald-500' :
+                              analyticsData.risk_metrics.diversification_score >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                              }`}
+                            style={{ width: `${analyticsData.risk_metrics.diversification_score}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Metrics Grid */}
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-slate-500">Concentration Risk</p>
+                          <p className={`font-bold ${analyticsData.risk_metrics.concentration_risk === 'Low' ? 'text-emerald-600' :
+                            analyticsData.risk_metrics.concentration_risk === 'Medium' ? 'text-amber-600' : 'text-red-600'
+                            }`}>{analyticsData.risk_metrics.concentration_risk}</p>
+                        </div>
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-slate-500">Top Holding</p>
+                          <p className="font-bold text-slate-800">{analyticsData.risk_metrics.top_holding_weight}%</p>
+                        </div>
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-slate-500">Sectors</p>
+                          <p className="font-bold text-slate-800">{analyticsData.risk_metrics.sector_count}</p>
+                        </div>
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-slate-500">Positions</p>
+                          <p className="font-bold text-slate-800">{analyticsData.risk_metrics.asset_count}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Recommendations */}
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
+                    <h4 className="font-semibold text-amber-800 mb-3 flex items-center gap-2">
+                      💡 Recommendations
+                    </h4>
+                    <ul className="space-y-2">
+                      {analyticsData.recommendations.map((rec, idx) => (
+                        <li key={idx} className="text-amber-900 text-sm flex items-start gap-2">
+                          <span className="text-amber-600 mt-0.5">•</span>
+                          {rec}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Detailed Analysis */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
+                    <h4 className="font-semibold text-slate-800 mb-4">📊 Detailed Analysis</h4>
+                    <div className="prose prose-sm prose-slate max-w-none">
+                      {analyticsData.detailed_analysis.split('\n').map((line, idx) => {
+                        if (line.startsWith('## ')) {
+                          return <h2 key={idx} className="text-lg font-bold text-slate-800 mt-4 mb-2">{line.replace('## ', '')}</h2>;
+                        } else if (line.startsWith('### ')) {
+                          return <h3 key={idx} className="text-md font-semibold text-slate-700 mt-3 mb-1">{line.replace('### ', '')}</h3>;
+                        } else if (line.startsWith('- ')) {
+                          return <p key={idx} className="text-slate-600 ml-4">{line}</p>;
+                        } else if (line.includes('**')) {
+                          return <p key={idx} className="text-slate-600" dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />;
+                        } else if (line.trim()) {
+                          return <p key={idx} className="text-slate-600">{line}</p>;
+                        }
+                        return null;
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                  <AlertTriangle size={48} className="mb-4" />
+                  <p>Could not analyze portfolio. Please try again.</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -541,6 +929,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
                   <Button onClick={fetchAssets} variant="ghost" size="sm" className="hidden sm:flex">
                     <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
                   </Button>
+                  <Button onClick={handleAnalyzePortfolio} variant="secondary" size="sm" leftIcon={<BarChart3 size={16} />} disabled={assets.length === 0}>
+                    Analyze
+                  </Button>
                   <Button onClick={() => setIsAddModalOpen(true)} size="sm" leftIcon={<Plus size={16} />}>
                     Add Asset
                   </Button>
@@ -581,38 +972,89 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
               <div className="grid lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-semibold text-slate-900">Portfolio Performance</h3>
-                    <select
-                      className="text-sm border-slate-200 rounded-lg text-slate-600 focus:ring-primary-500 outline-none p-1"
-                      aria-label="Select time range"
-                    >
-                      <option>Last 6 Months</option>
-                    </select>
+                    <h3 className="text-lg font-semibold text-slate-900">Asset Performance</h3>
+                    <div className="text-sm text-slate-500">
+                      {assets.length} assets
+                    </div>
                   </div>
-                  <div className="h-[300px] w-full flex items-center justify-center">
+                  <div className="h-[300px] w-full overflow-y-auto">
                     {assets.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={CHART_DATA}>
-                          <defs>
-                            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.1} />
-                              <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} dy={10} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} tickFormatter={(val) => `$${val}`} />
-                          <Tooltip
-                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px -2px rgba(0,0,0,0.1)' }}
-                            formatter={(value: number) => [`$${value.toLocaleString()}`, 'Value']}
-                          />
-                          <Area type="monotone" dataKey="value" stroke="#0ea5e9" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
-                        </AreaChart>
-                      </ResponsiveContainer>
+                      <div className="space-y-4">
+                        {assets.map((asset, index) => {
+                          const purchaseCost = (asset.purchasePrice || 0) * asset.amount;
+                          const currentValue = asset.value;
+                          const profitLoss = asset.profitLoss || 0;
+                          const profitLossPercent = asset.profitLossPercent || 0;
+                          const isProfit = profitLoss >= 0;
+                          const maxValue = Math.max(purchaseCost, currentValue);
+                          const purchaseWidth = maxValue > 0 ? (purchaseCost / maxValue) * 100 : 0;
+                          const currentWidth = maxValue > 0 ? (currentValue / maxValue) * 100 : 0;
+
+                          return (
+                            <div key={asset.id} className="group">
+                              {/* Asset header */}
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-slate-900">{asset.symbol}</span>
+                                  <span className="text-xs text-slate-400">{asset.amount} units</span>
+                                </div>
+                                <div className={`text-sm font-bold ${isProfit ? 'text-emerald-600' : 'text-red-500'}`}>
+                                  {isProfit ? '+' : ''}${profitLoss.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  <span className="text-xs ml-1">({isProfit ? '+' : ''}{profitLossPercent.toFixed(1)}%)</span>
+                                </div>
+                              </div>
+
+                              {/* Progress bars */}
+                              <div className="space-y-1">
+                                {/* Purchase cost bar */}
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-slate-400 w-16">Buy</span>
+                                  <div className="flex-1 h-4 bg-slate-100 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-slate-400 rounded-full transition-all duration-500"
+                                      style={{ width: `${purchaseWidth}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs text-slate-500 w-20 text-right">${purchaseCost.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                </div>
+
+                                {/* Current value bar */}
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-slate-400 w-16">Now</span>
+                                  <div className="flex-1 h-4 bg-slate-100 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full transition-all duration-500 ${isProfit ? 'bg-emerald-500' : 'bg-red-500'}`}
+                                      style={{ width: `${currentWidth}%` }}
+                                    />
+                                  </div>
+                                  <span className={`text-xs w-20 text-right font-medium ${isProfit ? 'text-emerald-600' : 'text-red-500'}`}>${currentValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Total Summary */}
+                        <div className="border-t border-slate-200 pt-4 mt-4">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-slate-900">Total Portfolio</span>
+                            <div className={`text-lg font-bold ${stats.totalGain >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                              {stats.totalGain >= 0 ? '+' : ''}${stats.totalGain.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              <span className="text-sm ml-1">({stats.totalGainPercent}%)</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between text-sm text-slate-500 mt-1">
+                            <span>Invested: ${(stats.totalValue - stats.totalGain).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                            <span>Current: ${stats.totalValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                          </div>
+                        </div>
+                      </div>
                     ) : (
-                      <div className="text-center text-slate-400">
-                        <PieChartIcon size={48} className="mx-auto mb-2 opacity-50" />
-                        <p>Add assets to see performance analytics</p>
+                      <div className="h-full flex items-center justify-center text-center text-slate-400">
+                        <div>
+                          <PieChartIcon size={48} className="mx-auto mb-2 opacity-50" />
+                          <p>Add assets to see performance</p>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -725,13 +1167,24 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
                                 <span className="text-xs text-slate-500 mt-1 block">{allocation.toFixed(1)}%</span>
                               </td>
                               <td className="px-6 py-4">
-                                <button
-                                  onClick={() => handleDeleteAsset(asset.id)}
-                                  className="text-slate-400 hover:text-red-500 transition-colors p-2 hover:bg-red-50 rounded-lg"
-                                  aria-label={`Delete ${asset.symbol}`}
-                                >
-                                  <Trash2 size={18} />
-                                </button>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => openSellModal(asset)}
+                                    className="text-slate-400 hover:text-emerald-600 transition-colors p-2 hover:bg-emerald-50 rounded-lg"
+                                    aria-label={`Sell ${asset.symbol}`}
+                                    title="Sell Position"
+                                  >
+                                    <SellIcon size={18} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteAsset(asset.id)}
+                                    className="text-slate-400 hover:text-red-500 transition-colors p-2 hover:bg-red-50 rounded-lg"
+                                    aria-label={`Delete ${asset.symbol}`}
+                                    title="Delete (No transaction record)"
+                                  >
+                                    <Trash2 size={18} />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           )
@@ -756,8 +1209,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
             </div>
           )}
         </div>
-      </main>
-    </div>
+      </main >
+    </div >
   );
 };
 

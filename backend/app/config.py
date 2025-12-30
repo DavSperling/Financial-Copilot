@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str  # Anon key
     SUPABASE_SERVICE_ROLE_KEY: str
     FRONTEND_URL: str = "http://localhost:5173"  # Default for local dev
+    GEMINI_API_KEY: str = "AIzaSyBX68sxQgLI_A5QAcrGLzAy1zAH0cMx1LA"  # Gemini API key
 
     class Config:
         env_file = "../.env.local"
