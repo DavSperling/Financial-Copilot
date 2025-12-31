@@ -51,6 +51,7 @@ export const getPortfolioRecommendation = async (profile: number): Promise<Portf
     }
 
     try {
+        // Both FastAPI and Vercel use the same path format
         const response = await fetch(`${API_BASE_URL}/recommendations?profile=${profile}`, {
             method: 'GET',
             headers: {
@@ -60,7 +61,7 @@ export const getPortfolioRecommendation = async (profile: number): Promise<Portf
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.detail || `Error: ${response.status} ${response.statusText}`);
+            throw new Error(errorData.detail || errorData.error || `Error: ${response.status}`);
         }
 
         const data: PortfolioRecommendation = await response.json();

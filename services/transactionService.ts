@@ -119,7 +119,13 @@ export const getPortfolioHistory = async (userId: string): Promise<PortfolioHist
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/portfolio/history?user_id=${userId}`, {
+        // Support both local FastAPI and Vercel serverless
+        const isVercel = API_BASE_URL === '/api';
+        const url = isVercel
+            ? `${API_BASE_URL}/portfolio?user_id=${userId}`  // Vercel /api/portfolio
+            : `${API_BASE_URL}/portfolio/history?user_id=${userId}`; // FastAPI
+
+        const response = await fetch(url, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -128,7 +134,7 @@ export const getPortfolioHistory = async (userId: string): Promise<PortfolioHist
 
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.detail || 'Failed to fetch portfolio history');
+            throw new Error(error.detail || error.error || 'Failed to fetch portfolio history');
         }
 
         return await response.json();
