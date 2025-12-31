@@ -35,21 +35,47 @@ export default function App() {
 
   // Check for existing session on mount
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        setUser({
-          id: session.user.id,
-          name: session.user.user_metadata?.name || 'User',
-          email: session.user.email || '',
-          avatar: 'https://picsum.photos/200'
-        });
+    const initAuth = async () => {
+      try {
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Auth timeout')), 5000)
+        );
 
-        // Check if user has completed onboarding
-        const completed = await hasCompletedOnboarding();
-        setCurrentView(completed ? 'dashboard' : 'onboarding');
+        const sessionPromise = supabase.auth.getSession();
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any;
+
+        if (session?.user) {
+          setUser({
+            id: session.user.id,
+            name: session.user.user_metadata?.name || 'User',
+            email: session.user.email || '',
+            avatar: 'https://picsum.photos/200'
+          });
+
+          // Check if user has completed onboarding with timeout
+          try {
+            const completed = await Promise.race([
+              hasCompletedOnboarding(),
+              new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 3000))
+            ]);
+            setCurrentView(completed ? 'dashboard' : 'onboarding');
+          } catch (onboardingError) {
+            console.error("Onboarding check failed:", onboardingError);
+            setCurrentView('dashboard');
+          }
+        }
+      } catch (error) {
+        console.error("Auth initialization error:", error);
+        // On error, go to landing page
+        setCurrentView('landing');
+      } finally {
+        // ALWAYS stop loading
+        setIsLoading(false);
       }
-      setIsLoading(false);
-    });
+    };
+
+    initAuth();
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
