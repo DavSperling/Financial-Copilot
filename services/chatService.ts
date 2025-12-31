@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+import { API_BASE_URL, isBackendAvailable } from '../config';
 
 export interface ChatMessage {
     role: 'user' | 'assistant';
@@ -15,6 +15,18 @@ export const sendChatMessage = async (
     message: string,
     history: ChatMessage[]
 ): Promise<ChatResponse> => {
+    // Check if backend is available
+    if (!isBackendAvailable() || !API_BASE_URL) {
+        // Return a helpful message when running on GitHub Pages
+        return {
+            response: "🚀 Le chatbot IA n'est disponible qu'en mode local avec le backend Python. Déployez le backend FastAPI pour activer cette fonctionnalité!",
+            suggestions: [
+                "Comment lancer le backend?",
+                "Voir la documentation",
+            ]
+        };
+    }
+
     try {
         const response = await fetch(`${API_BASE_URL}/chat/message`, {
             method: 'POST',
@@ -41,6 +53,10 @@ export const sendChatMessage = async (
 };
 
 export const checkChatHealth = async (): Promise<boolean> => {
+    if (!isBackendAvailable() || !API_BASE_URL) {
+        return false;
+    }
+
     try {
         const response = await fetch(`${API_BASE_URL}/chat/health`);
         const data = await response.json();

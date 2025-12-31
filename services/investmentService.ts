@@ -1,3 +1,5 @@
+import { API_BASE_URL, isBackendAvailable } from '../config';
+
 export interface InvestmentRequest {
     monthly_amount: number;
     years: number;
@@ -19,7 +21,35 @@ export interface ChartResponse {
     total_earnings: number;
 }
 
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+// Client-side calculation when backend is not available
+const calculateInvestmentLocally = (
+    monthlyAmount: number,
+    years: number,
+    annualReturn: number,
+    initialInvestment: number
+): InvestmentResponse => {
+    const monthlyRate = annualReturn / 100 / 12;
+    const months = years * 12;
+
+    let balance = initialInvestment;
+    const yearlyBreakdown: number[] = [initialInvestment];
+
+    for (let month = 1; month <= months; month++) {
+        balance = balance * (1 + monthlyRate) + monthlyAmount;
+        if (month % 12 === 0) {
+            yearlyBreakdown.push(Math.round(balance * 100) / 100);
+        }
+    }
+
+    const totalContributed = initialInvestment + (monthlyAmount * months);
+
+    return {
+        future_value: Math.round(balance * 100) / 100,
+        total_contributed: totalContributed,
+        total_earnings: Math.round((balance - totalContributed) * 100) / 100,
+        yearly_breakdown: yearlyBreakdown
+    };
+};
 
 export const calculateInvestment = async (
     monthlyAmount: number,
@@ -27,6 +57,11 @@ export const calculateInvestment = async (
     annualReturn: number,
     initialInvestment: number = 0
 ): Promise<InvestmentResponse> => {
+    // Use local calculation if backend is not available
+    if (!isBackendAvailable() || !API_BASE_URL) {
+        return calculateInvestmentLocally(monthlyAmount, years, annualReturn, initialInvestment);
+    }
+
     try {
         const response = await fetch(`${API_BASE_URL}/investment/calculate`, {
             method: 'POST',
@@ -48,8 +83,9 @@ export const calculateInvestment = async (
 
         return await response.json();
     } catch (error) {
-        console.error('Error calculating investment:', error);
-        throw error;
+        console.error('Error calculating investment, falling back to local:', error);
+        // Fallback to local calculation
+        return calculateInvestmentLocally(monthlyAmount, years, annualReturn, initialInvestment);
     }
 };
 
@@ -59,6 +95,17 @@ export const generateInvestmentChart = async (
     annualReturn: number,
     initialInvestment: number = 0
 ): Promise<ChartResponse> => {
+    if (!isBackendAvailable() || !API_BASE_URL) {
+        // Return calculation without chart image
+        const calc = calculateInvestmentLocally(monthlyAmount, years, annualReturn, initialInvestment);
+        return {
+            chart_image: '',
+            future_value: calc.future_value,
+            total_contributed: calc.total_contributed,
+            total_earnings: calc.total_earnings
+        };
+    }
+
     try {
         const response = await fetch(`${API_BASE_URL}/investment/chart`, {
             method: 'POST',

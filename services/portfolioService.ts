@@ -1,3 +1,5 @@
+import { API_BASE_URL, isBackendAvailable } from '../config';
+
 export interface AIProposal {
     id: string;
     title: string;
@@ -35,7 +37,7 @@ export interface RecommendationResponse {
 }
 
 export interface AcceptAssetRequest {
-    user_id: string; // We'll get this from auth context/session
+    user_id: string;
     ticker: string;
     name: string;
     price: number;
@@ -43,9 +45,11 @@ export interface AcceptAssetRequest {
     type?: string;
 }
 
-const API_BASE_URL = 'http://localhost:8000/api/v1';
-
 export const getPortfolioRecommendation = async (profile: number): Promise<PortfolioRecommendation> => {
+    if (!isBackendAvailable() || !API_BASE_URL) {
+        throw new Error('Recommendations require the backend. Please run it locally.');
+    }
+
     try {
         const response = await fetch(`${API_BASE_URL}/recommendations?profile=${profile}`, {
             method: 'GET',
@@ -68,6 +72,10 @@ export const getPortfolioRecommendation = async (profile: number): Promise<Portf
 };
 
 export const getStockRecommendations = async (profile: number, userId?: string): Promise<RecommendationResponse> => {
+    if (!isBackendAvailable() || !API_BASE_URL) {
+        throw new Error('Stock recommendations require the backend.');
+    }
+
     try {
         const url = `${API_BASE_URL}/recommendations/stocks?profile=${profile}${userId ? `&user_id=${userId}` : ''}`;
         const response = await fetch(url, {
@@ -88,6 +96,10 @@ export const getStockRecommendations = async (profile: number, userId?: string):
 };
 
 export const addAssetToPortfolio = async (assetRequest: AcceptAssetRequest): Promise<void> => {
+    if (!isBackendAvailable() || !API_BASE_URL) {
+        throw new Error('Adding assets requires the backend.');
+    }
+
     try {
         const response = await fetch(`${API_BASE_URL}/recommendations/assets`, {
             method: 'POST',

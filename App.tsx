@@ -17,13 +17,8 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 export type ViewState = 'landing' | 'login' | 'register' | 'onboarding' | 'dashboard' | 'profile' | 'settings' | 'forgot-password' | 'reset-password' | 'recommendations' | 'calculator' | 'transactions';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<ViewState>('calculator');
-  const [user, setUser] = useState<User | null>({
-    id: 'test-user',
-    name: 'Test Agent',
-    email: 'test@example.com',
-    avatar: 'https://ui-avatars.com/api/?name=Test+Agent'
-  });
+  const [currentView, setCurrentView] = useState<ViewState>('landing');
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
 

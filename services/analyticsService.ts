@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+import { API_BASE_URL, isBackendAvailable } from '../config';
 
 export interface AssetAnalysis {
     symbol: string;
@@ -39,6 +39,10 @@ export interface PortfolioAnalysis {
 }
 
 export const getPortfolioAnalysis = async (userId: string): Promise<PortfolioAnalysis> => {
+    if (!isBackendAvailable() || !API_BASE_URL) {
+        throw new Error('Portfolio analytics requires the Python backend. Please run it locally.');
+    }
+
     try {
         const response = await fetch(`${API_BASE_URL}/analytics/portfolio?user_id=${userId}`, {
             method: 'GET',

@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+import { API_BASE_URL, isBackendAvailable } from '../config';
 
 export interface Transaction {
     id: number;
@@ -36,6 +36,10 @@ export interface ClosePositionResponse {
 }
 
 export const closePosition = async (request: ClosePositionRequest): Promise<ClosePositionResponse> => {
+    if (!isBackendAvailable() || !API_BASE_URL) {
+        throw new Error('This feature requires the backend. Please run the Python server locally.');
+    }
+
     try {
         const response = await fetch(`${API_BASE_URL}/portfolio/close`, {
             method: 'POST',
@@ -58,6 +62,15 @@ export const closePosition = async (request: ClosePositionRequest): Promise<Clos
 };
 
 export const getTransactions = async (userId: string): Promise<TransactionsResponse> => {
+    if (!isBackendAvailable() || !API_BASE_URL) {
+        // Return empty transactions in demo mode
+        return {
+            transactions: [],
+            total_realized_gains: 0,
+            total_transactions: 0
+        };
+    }
+
     try {
         const response = await fetch(`${API_BASE_URL}/portfolio/transactions?user_id=${userId}`, {
             method: 'GET',
@@ -94,6 +107,17 @@ export interface PortfolioHistoryResponse {
 }
 
 export const getPortfolioHistory = async (userId: string): Promise<PortfolioHistoryResponse> => {
+    if (!isBackendAvailable() || !API_BASE_URL) {
+        // Return empty history in demo mode
+        return {
+            history: [],
+            current_value: 0,
+            total_invested: 0,
+            total_gain: 0,
+            total_gain_percent: 0
+        };
+    }
+
     try {
         const response = await fetch(`${API_BASE_URL}/portfolio/history?user_id=${userId}`, {
             method: 'GET',
