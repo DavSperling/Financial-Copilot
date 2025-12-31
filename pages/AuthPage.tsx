@@ -40,13 +40,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ view, onNavigate, onLogin })
         if (signUpError) throw signUpError;
 
         if (data.user) {
-          // Successfully registered
-          onLogin({
-            id: data.user.id,
-            name: name,
-            email: email,
-            avatar: 'https://picsum.photos/200'
-          });
+          // Supabase's onAuthStateChange in App.tsx will handle navigation automatically
+          // No need to call onLogin() here as it would cause duplicate state updates
         }
       } else {
         // Sign in with Supabase
@@ -58,13 +53,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ view, onNavigate, onLogin })
         if (signInError) throw signInError;
 
         if (data.user) {
-          // Successfully logged in
-          onLogin({
-            id: data.user.id,
-            name: data.user.user_metadata?.name || 'User',
-            email: data.user.email || email,
-            avatar: 'https://picsum.photos/200'
-          });
+          // Supabase's onAuthStateChange in App.tsx will handle navigation automatically
+          // No need to call onLogin() here as it would cause duplicate state updates
         }
       }
     } catch (err: any) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/AuthPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -21,6 +21,9 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Ref to track if initial auth check is complete (prevents race condition)
+  const initialCheckDone = useRef(false);
 
   // Toggle Dark Mode
   useEffect(() => {
@@ -45,8 +48,9 @@ export default function App() {
         if (!isMounted) return;
 
         if (error) {
-          console.error("Session check error:", error);
+          console.error("[Auth] Session check error:", error);
           await supabase.auth.signOut();
+          initialCheckDone.current = true;
           setIsLoading(false);
           return;
         }
@@ -70,10 +74,14 @@ export default function App() {
             if (isMounted) setCurrentView('dashboard');
           }
         }
+        // If no session, we stay on landing (the default)
       } catch (error) {
-        console.error("Auth initialization error:", error);
+        console.error("[Auth] Auth initialization error:", error);
       } finally {
-        if (isMounted) setIsLoading(false);
+        if (isMounted) {
+          initialCheckDone.current = true;
+          setIsLoading(false);
+        }
       }
     };
 
@@ -87,21 +95,28 @@ export default function App() {
     // Start auth check
     initAuth();
 
-    // Fallback: Always stop loading after 8 seconds no matter what
+    // Fallback: Always stop loading after 5 seconds no matter what
     const fallbackTimer = setTimeout(() => {
-      if (isMounted) {
-        console.log("Fallback: stopping loading after 8s");
+      if (isMounted && !initialCheckDone.current) {
+        console.warn("[Auth] Fallback: stopping loading after 5s timeout");
+        initialCheckDone.current = true;
         setIsLoading(false);
       }
-    }, 8000);
+    }, 5000);
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
 
-      // Handle password recovery event
+      // Handle password recovery event immediately
       if (event === 'PASSWORD_RECOVERY') {
         setCurrentView('reset-password');
+        return;
+      }
+
+      // CRITICAL FIX: Ignore auth state changes during initial check to prevent race condition
+      // This prevents the issue where onAuthStateChange fires with null before getSession() completes
+      if (!initialCheckDone.current) {
         return;
       }
 
@@ -124,7 +139,7 @@ export default function App() {
             const completed = await hasCompletedOnboarding();
             if (isMounted) setCurrentView(completed ? 'dashboard' : 'onboarding');
           } catch (error) {
-            console.error("Error checking onboarding status:", error);
+            console.error("[Auth] Error checking onboarding status:", error);
             if (isMounted) setCurrentView('dashboard');
           }
         }
