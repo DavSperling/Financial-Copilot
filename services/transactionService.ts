@@ -133,13 +133,27 @@ export const getPortfolioHistory = async (userId: string): Promise<PortfolioHist
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || error.error || 'Failed to fetch portfolio history');
+            console.error('Portfolio history API error:', response.status);
+            // Return empty data instead of throwing
+            return {
+                history: [],
+                current_value: 0,
+                total_invested: 0,
+                total_gain: 0,
+                total_gain_percent: 0
+            };
         }
 
         return await response.json();
     } catch (error) {
         console.error('Error fetching portfolio history:', error);
-        throw error;
+        // Return empty data instead of throwing to prevent page hang
+        return {
+            history: [],
+            current_value: 0,
+            total_invested: 0,
+            total_gain: 0,
+            total_gain_percent: 0
+        };
     }
 };

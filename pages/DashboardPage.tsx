@@ -101,8 +101,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
   const fetchData = async () => {
     if (!user?.id) return;
     setLoading(true);
-    await Promise.all([fetchAssets(), fetchProfileAndCalculateCash(), fetchPortfolioHistory()]);
-    setLoading(false);
+    try {
+      // Use Promise.allSettled to handle individual failures gracefully
+      await Promise.allSettled([
+        fetchAssets(),
+        fetchProfileAndCalculateCash(),
+        fetchPortfolioHistory()
+      ]);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      // Always stop loading, even if some requests failed
+      setLoading(false);
+    }
   };
 
   const fetchPortfolioHistory = async () => {
