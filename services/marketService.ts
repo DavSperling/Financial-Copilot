@@ -35,7 +35,13 @@ export const getPrice = async (symbol: string): Promise<PriceData> => {
         throw new Error('Live market data requires the backend. Using purchase prices.');
     }
 
-    const response = await fetch(`${API_BASE_URL}/market/price/${symbol}`);
+    // Support both local FastAPI format and Vercel serverless format
+    const isVercel = API_BASE_URL === '/api';
+    const url = isVercel
+        ? `${API_BASE_URL}/market?symbol=${symbol}`  // Vercel uses query params
+        : `${API_BASE_URL}/market/price/${symbol}`;  // FastAPI uses path params
+
+    const response = await fetch(url);
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({}));
@@ -59,7 +65,13 @@ export const getPrices = async (symbols: string[]): Promise<Record<string, numbe
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/market/prices`, {
+        // Support both local FastAPI format and Vercel serverless format
+        const isVercel = API_BASE_URL === '/api';
+        const url = isVercel
+            ? `${API_BASE_URL}/market`       // Vercel /api/market with POST
+            : `${API_BASE_URL}/market/prices`; // FastAPI /api/v1/market/prices
+
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

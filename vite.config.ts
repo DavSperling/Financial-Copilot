@@ -4,9 +4,8 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
-  const isProd = mode === 'production';
   return {
-    base: isProd ? '/Financial-Copilot/' : '/',
+    base: '/',  // Vercel serves from root
     server: {
       port: 5173,
       host: '0.0.0.0',
@@ -23,3 +22,4 @@ export default defineConfig(({ mode }) => {
     }
   };
 });
+

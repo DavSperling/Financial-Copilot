@@ -44,7 +44,13 @@ export const getPortfolioAnalysis = async (userId: string): Promise<PortfolioAna
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/analytics/portfolio?user_id=${userId}`, {
+        // Support both local FastAPI format and Vercel serverless format
+        const isVercel = API_BASE_URL === '/api';
+        const url = isVercel
+            ? `${API_BASE_URL}/analytics?user_id=${userId}`  // Vercel /api/analytics
+            : `${API_BASE_URL}/analytics/portfolio?user_id=${userId}`; // FastAPI
+
+        const response = await fetch(url, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -53,7 +59,7 @@ export const getPortfolioAnalysis = async (userId: string): Promise<PortfolioAna
 
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.detail || 'Failed to analyze portfolio');
+            throw new Error(error.detail || error.error || 'Failed to analyze portfolio');
         }
 
         return await response.json();

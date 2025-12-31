@@ -28,7 +28,13 @@ export const sendChatMessage = async (
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/chat/message`, {
+        // Support both local FastAPI format and Vercel serverless format
+        const isVercel = API_BASE_URL === '/api';
+        const url = isVercel
+            ? `${API_BASE_URL}/chat`        // Vercel /api/chat
+            : `${API_BASE_URL}/chat/message`; // FastAPI /api/v1/chat/message
+
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -42,7 +48,7 @@ export const sendChatMessage = async (
 
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.detail || 'Failed to send message');
+            throw new Error(error.detail || error.error || 'Failed to send message');
         }
 
         return await response.json();
@@ -58,7 +64,13 @@ export const checkChatHealth = async (): Promise<boolean> => {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/chat/health`);
+        // Support both local FastAPI format and Vercel serverless format
+        const isVercel = API_BASE_URL === '/api';
+        const url = isVercel
+            ? `${API_BASE_URL}/chat`        // Vercel /api/chat GET
+            : `${API_BASE_URL}/chat/health`; // FastAPI /api/v1/chat/health
+
+        const response = await fetch(url);
         const data = await response.json();
         return data.status === 'ok';
     } catch {
