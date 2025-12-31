@@ -6,6 +6,10 @@ import type {
     OnboardingStatus,
 } from '../types/onboarding';
 
+// Cache for onboarding status to avoid repeated checks
+let onboardingCache: { userId: string; completed: boolean; timestamp: number } | null = null;
+const CACHE_TTL = 30000; // 30 seconds
+
 /**
  * Get the current onboarding status for the authenticated user
  */
@@ -69,7 +73,6 @@ export async function saveOnboardingProgress(
     if (data.age !== undefined) profileData.age = data.age;
     if (data.experience !== undefined) profileData.investment_experience = data.experience;
     if (data.riskTolerance !== undefined) profileData.risk_tolerance = data.riskTolerance;
-    if (data.riskTolerance !== undefined) profileData.risk_tolerance = data.riskTolerance;
     if (data.initialInvestment !== undefined) profileData.initial_investment = data.initialInvestment;
     if (data.monthlyBudget !== undefined) profileData.monthly_budget = data.monthlyBudget;
     if (data.investmentGoals !== undefined) profileData.investment_goals = data.investmentGoals as any;
@@ -81,6 +84,9 @@ export async function saveOnboardingProgress(
 
     if (profileError) throw profileError;
 
+    // Invalidate cache after saving
+    onboardingCache = null;
+
     // Prepare preferences data (if applicable)
     if (data.sectors || data.countries !== undefined) {
         const preferencesData: Partial<InvestmentPreferences> = {
@@ -89,7 +95,7 @@ export async function saveOnboardingProgress(
 
         if (data.sectors !== undefined) preferencesData.preferred_sectors = data.sectors as any;
         if (data.countries !== undefined) preferencesData.preferred_countries = data.countries as any;
-        // Upsert preferences
+
         const { error: preferencesError } = await supabase
             .from('investment_preferences')
             .upsert(preferencesData, { onConflict: 'user_id' });
@@ -117,55 +123,69 @@ export async function completeOnboarding(): Promise<void> {
         .eq('user_id', user.id);
 
     if (error) throw error;
+
+    // Update cache
+    onboardingCache = { userId: user.id, completed: true, timestamp: Date.now() };
 }
 
 /**
- * Check if user has completed onboarding
+ * Check if user has completed onboarding - OPTIMIZED
+ * Uses caching to avoid repeated slow checks
  */
 export async function hasCompletedOnboarding(): Promise<boolean> {
-    const { data: { user } } = await supabase.auth.getUser();
+    try {
+        // Get current user from session (faster than getUser())
+        const { data: { session } } = await supabase.auth.getSession();
 
-    if (!user) return false;
-
-    // Retry logic to handle race condition with profile creation trigger
-    let retries = 3;
-    let delay = 200; // Start with 200ms delay
-
-    while (retries > 0) {
-        // Double check session validity first
-        const { data: { session }, error: authError } = await supabase.auth.getSession();
-        if (authError || !session) {
-            console.warn("Session invalid during onboarding check, returning false");
+        if (!session?.user) {
             return false;
         }
 
+        const userId = session.user.id;
+
+        // Check cache first
+        if (onboardingCache &&
+            onboardingCache.userId === userId &&
+            Date.now() - onboardingCache.timestamp < CACHE_TTL) {
+            return onboardingCache.completed;
+        }
+
+        // Single query - no retries (faster for normal cases)
         const { data, error } = await supabase
             .from('user_profiles')
             .select('onboarding_completed')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .single();
 
-        // If we got data, return the onboarding status
+        // If we got data, cache and return
         if (data) {
-            return data.onboarding_completed ?? false;
+            const completed = data.onboarding_completed ?? false;
+            onboardingCache = { userId, completed, timestamp: Date.now() };
+            return completed;
         }
 
-        // If error is not "no rows found", something went wrong
-        if (error && error.code !== 'PGRST116') {
-            console.error('Error checking onboarding status:', error);
-            // Don't loop if it's a permission error or similar
+        // If error is "no rows found", user hasn't started onboarding
+        if (error && error.code === 'PGRST116') {
+            onboardingCache = { userId, completed: false, timestamp: Date.now() };
             return false;
         }
 
-        // Profile doesn't exist yet, wait and retry
-        retries--;
-        if (retries > 0) {
-            await new Promise(resolve => setTimeout(resolve, delay));
-            delay *= 2; // Exponential backoff
+        // Other errors - log and return false (don't block the UI)
+        if (error) {
+            console.error('Error checking onboarding status:', error);
+            return false;
         }
-    }
 
-    // After all retries, assume not completed
-    return false;
+        return false;
+    } catch (error) {
+        console.error('Unexpected error in hasCompletedOnboarding:', error);
+        return false; // Don't block UI on errors
+    }
 }
 
+/**
+ * Clear the onboarding cache (useful on logout)
+ */
+export function clearOnboardingCache(): void {
+    onboardingCache = null;
+}

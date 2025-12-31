@@ -8,7 +8,7 @@ import RecommendationsPage from './pages/Portfolio/RecommendationsPage';
 import { Layout } from './components/Layout';
 import { User } from './types';
 import { supabase } from './supabaseClient';
-import { hasCompletedOnboarding } from './services/onboardingService';
+import { hasCompletedOnboarding, clearOnboardingCache } from './services/onboardingService';
 
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
@@ -159,6 +159,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    clearOnboardingCache(); // Clear cached onboarding status
     await supabase.auth.signOut();
     setUser(null);
     setCurrentView('landing');
