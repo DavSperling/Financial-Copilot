@@ -35,15 +35,21 @@ export default function App() {
 
   // Check for existing session on mount
   useEffect(() => {
+    let isMounted = true;
+
+    // Quick initial check
     const initAuth = async () => {
       try {
-        // Add timeout to prevent infinite loading
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Auth timeout')), 5000)
-        );
+        const { data: { session }, error } = await supabase.auth.getSession();
 
-        const sessionPromise = supabase.auth.getSession();
-        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any;
+        if (!isMounted) return;
+
+        if (error) {
+          console.error("Session check error:", error);
+          await supabase.auth.signOut();
+          setIsLoading(false);
+          return;
+        }
 
         if (session?.user) {
           setUser({
@@ -53,36 +59,50 @@ export default function App() {
             avatar: 'https://picsum.photos/200'
           });
 
-          // Check if user has completed onboarding with timeout
+          // Quick onboarding check - default to dashboard if slow
           try {
             const completed = await Promise.race([
               hasCompletedOnboarding(),
-              new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 3000))
+              new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 2000))
             ]);
-            setCurrentView(completed ? 'dashboard' : 'onboarding');
-          } catch (onboardingError) {
-            console.error("Onboarding check failed:", onboardingError);
-            setCurrentView('dashboard');
+            if (isMounted) setCurrentView(completed ? 'dashboard' : 'onboarding');
+          } catch (e) {
+            if (isMounted) setCurrentView('dashboard');
           }
         }
       } catch (error) {
         console.error("Auth initialization error:", error);
-        // On error, go to landing page
-        setCurrentView('landing');
       } finally {
-        // ALWAYS stop loading
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
 
+    // Check URL for recovery flow first
+    const path = window.location.pathname;
+    const hash = window.location.hash;
+    if (path.includes('/reset-password') || (hash && hash.includes('type=recovery'))) {
+      setCurrentView('reset-password');
+    }
+
+    // Start auth check
     initAuth();
+
+    // Fallback: Always stop loading after 8 seconds no matter what
+    const fallbackTimer = setTimeout(() => {
+      if (isMounted) {
+        console.log("Fallback: stopping loading after 8s");
+        setIsLoading(false);
+      }
+    }, 8000);
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+
       // Handle password recovery event
       if (event === 'PASSWORD_RECOVERY') {
         setCurrentView('reset-password');
-        return; // EXIT EARLY to prevent session check from overwriting view
+        return;
       }
 
       if (session?.user) {
@@ -93,29 +113,26 @@ export default function App() {
           avatar: 'https://picsum.photos/200'
         });
 
-        // Check pathname for reset password
-        const path = window.location.pathname;
-        const hash = window.location.hash;
-        const type = new URLSearchParams(hash.replace('#', '?')).get('type');
+        const currentPath = window.location.pathname;
+        const currentHash = window.location.hash;
+        const type = new URLSearchParams(currentHash.replace('#', '?')).get('type');
 
-        if (path.includes('/reset-password') || type === 'recovery') {
+        if (currentPath.includes('/reset-password') || type === 'recovery') {
           setCurrentView('reset-password');
         } else {
-          // Normal login flow
           try {
             const completed = await hasCompletedOnboarding();
-            setCurrentView(completed ? 'dashboard' : 'onboarding');
+            if (isMounted) setCurrentView(completed ? 'dashboard' : 'onboarding');
           } catch (error) {
             console.error("Error checking onboarding status:", error);
-            setCurrentView('dashboard');
+            if (isMounted) setCurrentView('dashboard');
           }
         }
       } else {
         setUser(null);
-        // Check for public routes before forcing landing
-        const path = window.location.pathname;
-        const hash = window.location.hash;
-        if (path.includes('/reset-password') || (hash && hash.includes('type=recovery'))) {
+        const currentPath = window.location.pathname;
+        const currentHash = window.location.hash;
+        if (currentPath.includes('/reset-password') || (currentHash && currentHash.includes('type=recovery'))) {
           setCurrentView('reset-password');
         } else {
           setCurrentView('landing');
@@ -123,22 +140,15 @@ export default function App() {
       }
     });
 
-    // Check URL on initial load for recovery flow
-    // IMPORTANT: Check pathname first as our backend redirects to /reset-password
-    const path = window.location.pathname;
-    const hash = window.location.hash;
-    if (path.includes('/reset-password') || (hash && hash.includes('type=recovery'))) {
-      setCurrentView('reset-password');
-      // We do NOT want to stop loading here, we want the auth listener to fire too
-      // or we just set view and wait.
-    }
-
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      clearTimeout(fallbackTimer);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleLogin = async (mockUser: User) => {
     setUser(mockUser);
-    // Check if user has completed onboarding with error handling
     try {
       const completed = await hasCompletedOnboarding();
       setCurrentView(completed ? 'dashboard' : 'onboarding');
