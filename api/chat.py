@@ -18,8 +18,9 @@ try:
 except Exception as e:
     print(f"Init error: {e}")
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+# OpenAI API Configuration - using gpt-4o-mini (cheapest, fastest model)
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 
 SYSTEM_PROMPT = """Tu es un assistant financier intelligent pour Portfolio Copilot. 
 Réponds en français, sois concis et utilise des emojis 📊💰📈.
@@ -58,26 +59,37 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": "message required"}).encode())
                 return
             
-            if not GEMINI_API_KEY or not httpx:
-                # Return fallback response if Gemini not configured
-                response_text = "🤖 Le chatbot IA nécessite une clé API Gemini configurée dans les variables d'environnement Vercel."
+            if not OPENAI_API_KEY or not httpx:
+                # Return fallback response if OpenAI not configured
+                response_text = "🤖 Le chatbot IA nécessite une clé API OpenAI configurée dans les variables d'environnement Vercel (OPENAI_API_KEY)."
             else:
-                # Call Gemini API
-                prompt = f"{SYSTEM_PROMPT}\n\nUser: {message}\nAssistant:"
+                # Call OpenAI API with gpt-4o-mini (cheapest model)
                 payload = {
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.7, "maxOutputTokens": 512}
+                    "model": "gpt-4o-mini",
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": message}
+                    ],
+                    "temperature": 0.7,
+                    "max_tokens": 512
+                }
+                
+                headers = {
+                    "Authorization": f"Bearer {OPENAI_API_KEY}",
+                    "Content-Type": "application/json"
                 }
                 
                 with httpx.Client(timeout=25.0) as client:
-                    resp = client.post(GEMINI_URL, json=payload)
+                    resp = client.post(OPENAI_URL, json=payload, headers=headers)
                     if resp.status_code == 200:
-                        gemini_data = resp.json()
-                        response_text = gemini_data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                        openai_data = resp.json()
+                        response_text = openai_data["choices"][0]["message"]["content"].strip()
                     elif resp.status_code == 429:
-                        response_text = "⚠️ Quota Gemini API épuisé. Veuillez réessayer plus tard ou utiliser une nouvelle clé API."
+                        response_text = "⚠️ Quota OpenAI API épuisé. Veuillez réessayer plus tard."
+                    elif resp.status_code == 401:
+                        response_text = "❌ Clé API OpenAI invalide. Veuillez vérifier votre configuration."
                     else:
-                        response_text = f"Erreur API Gemini: {resp.status_code}"
+                        response_text = f"Erreur API OpenAI: {resp.status_code}"
             
             result = {
                 "response": response_text,
