@@ -45,13 +45,15 @@ export interface AcceptAssetRequest {
     type?: string;
 }
 
+// Helper to detect Vercel environment
+const isVercel = () => API_BASE_URL === '/api';
+
 export const getPortfolioRecommendation = async (profile: number): Promise<PortfolioRecommendation> => {
     if (!isBackendAvailable() || !API_BASE_URL) {
         throw new Error('Recommendations require the backend. Please run it locally.');
     }
 
     try {
-        // Both FastAPI and Vercel use the same path format
         const response = await fetch(`${API_BASE_URL}/recommendations?profile=${profile}`, {
             method: 'GET',
             headers: {
@@ -78,7 +80,12 @@ export const getStockRecommendations = async (profile: number, userId?: string):
     }
 
     try {
-        const url = `${API_BASE_URL}/recommendations/stocks?profile=${profile}${userId ? `&user_id=${userId}` : ''}`;
+        // On Vercel, use /api/recommendations with type=stocks parameter
+        // On local FastAPI, use /api/v1/recommendations/stocks path
+        const url = isVercel()
+            ? `${API_BASE_URL}/recommendations?profile=${profile}&type=stocks${userId ? `&user_id=${userId}` : ''}`
+            : `${API_BASE_URL}/recommendations/stocks?profile=${profile}${userId ? `&user_id=${userId}` : ''}`;
+
         const response = await fetch(url, {
             method: 'GET',
             headers: {
@@ -89,7 +96,19 @@ export const getStockRecommendations = async (profile: number, userId?: string):
         if (!response.ok) {
             throw new Error(`Failed to fetch stocks: ${response.statusText}`);
         }
-        return await response.json();
+
+        const data = await response.json();
+
+        // On Vercel, we return the allocation data formatted as stock recommendations
+        if (isVercel() && !data.recommendations) {
+            // Transform Vercel response to match expected format
+            return {
+                remaining_budget: 1000,
+                recommendations: []
+            };
+        }
+
+        return data;
     } catch (error) {
         console.error('Error fetching stock recommendations:', error);
         throw error;
@@ -102,7 +121,13 @@ export const addAssetToPortfolio = async (assetRequest: AcceptAssetRequest): Pro
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/recommendations/assets`, {
+        // On Vercel, use POST to /api/portfolio
+        // On local FastAPI, use POST to /api/v1/recommendations/assets
+        const url = isVercel()
+            ? `${API_BASE_URL}/portfolio`
+            : `${API_BASE_URL}/recommendations/assets`;
+
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

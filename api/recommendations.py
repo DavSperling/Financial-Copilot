@@ -46,6 +46,30 @@ ALLOCATIONS = {
     }
 }
 
+# Stock recommendations by risk profile
+STOCK_RECOMMENDATIONS = {
+    "1": [
+        {"ticker": "BND", "name": "Vanguard Total Bond ETF", "sector": "Bonds", "current_price": 72.50, "explanation": "Low-risk bond fund for capital preservation."},
+        {"ticker": "VTIP", "name": "Vanguard Short-Term Inflation-Protected", "sector": "Bonds", "current_price": 48.20, "explanation": "Protection against inflation."},
+    ],
+    "2": [
+        {"ticker": "VTI", "name": "Vanguard Total Stock Market ETF", "sector": "ETF", "current_price": 260.00, "explanation": "Broad market exposure with growth potential."},
+        {"ticker": "VXUS", "name": "Vanguard Total International Stock", "sector": "ETF", "current_price": 58.50, "explanation": "International diversification."},
+        {"ticker": "BND", "name": "Vanguard Total Bond ETF", "sector": "Bonds", "current_price": 72.50, "explanation": "Stability and income."},
+    ],
+    "3": [
+        {"ticker": "VTI", "name": "Vanguard Total Stock Market ETF", "sector": "ETF", "current_price": 260.00, "explanation": "Core US market exposure."},
+        {"ticker": "VGT", "name": "Vanguard Information Technology ETF", "sector": "Technology", "current_price": 520.00, "explanation": "Growth through tech sector."},
+        {"ticker": "VWO", "name": "Vanguard Emerging Markets ETF", "sector": "ETF", "current_price": 42.00, "explanation": "High growth potential from emerging markets."},
+    ],
+    "4": [
+        {"ticker": "QQQ", "name": "Invesco QQQ Trust", "sector": "Technology", "current_price": 530.00, "explanation": "High growth Nasdaq exposure."},
+        {"ticker": "ARKK", "name": "ARK Innovation ETF", "sector": "Technology", "current_price": 48.00, "explanation": "Disruptive innovation exposure."},
+        {"ticker": "VWO", "name": "Vanguard Emerging Markets ETF", "sector": "ETF", "current_price": 42.00, "explanation": "Emerging market growth."},
+        {"ticker": "SOXX", "name": "iShares Semiconductor ETF", "sector": "Technology", "current_price": 220.00, "explanation": "Semiconductor sector exposure."},
+    ]
+}
+
 
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
@@ -60,11 +84,21 @@ class handler(BaseHTTPRequestHandler):
             parsed = urlparse(self.path)
             params = parse_qs(parsed.query)
             profile = params.get('profile', ['2'])[0]
+            req_type = params.get('type', ['allocation'])[0]
             
             if profile not in ALLOCATIONS:
                 profile = '2'
             
-            result = ALLOCATIONS[profile]
+            # Return stock recommendations if type=stocks
+            if req_type == 'stocks':
+                stocks = STOCK_RECOMMENDATIONS.get(profile, [])
+                result = {
+                    "remaining_budget": 1000,
+                    "recommendations": stocks
+                }
+            else:
+                # Return allocation data
+                result = ALLOCATIONS[profile]
             
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
