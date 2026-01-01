@@ -136,8 +136,8 @@ export const addAssetToPortfolio = async (assetRequest: AcceptAssetRequest): Pro
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Failed to add asset');
+            const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+            throw new Error(error.error || error.detail || 'Failed to add asset');
         }
     } catch (error) {
         console.error('Error adding asset:', error);
