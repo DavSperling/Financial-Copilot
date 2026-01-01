@@ -78,6 +78,45 @@ def get_portfolio_history(user_id):
         return {"error": str(e)}
 
 
+def add_asset(data):
+    """Add a new asset to user's portfolio."""
+    if not supabase:
+        return {"error": "Supabase not configured", "success": False}
+    
+    try:
+        user_id = data.get("user_id")
+        ticker = data.get("ticker", "").upper()
+        name = data.get("name", ticker)
+        price = float(data.get("price", 0))
+        amount = float(data.get("amount", 1))
+        asset_type = data.get("type", "stock")
+        
+        if not user_id or not ticker:
+            return {"error": "user_id and ticker are required", "success": False}
+        
+        # Insert into assets table
+        asset_data = {
+            "user_id": user_id,
+            "symbol": ticker,
+            "name": name,
+            "price": price,
+            "purchase_price": price,
+            "amount": amount,
+            "type": asset_type
+        }
+        
+        result = supabase.table("assets").insert(asset_data).execute()
+        
+        if result.data:
+            return {"success": True, "asset": result.data[0]}
+        else:
+            return {"error": "Failed to insert asset", "success": False}
+            
+    except Exception as e:
+        print(f"Error adding asset: {e}")
+        return {"error": str(e), "success": False}
+
+
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
@@ -103,6 +142,28 @@ class handler(BaseHTTPRequestHandler):
             result = get_portfolio_history(user_id)
             
             self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(result).encode())
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e)}).encode())
+
+    def do_POST(self):
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length)
+            data = json.loads(body) if body else {}
+            
+            result = add_asset(data)
+            
+            status = 200 if result.get("success") else 400
+            
+            self.send_response(status)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
