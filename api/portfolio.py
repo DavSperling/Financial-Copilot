@@ -3,16 +3,45 @@ import json
 import os
 from urllib.parse import parse_qs, urlparse
 
-# Try to import supabase, but gracefully handle if not available
+# Try to import dependencies
 supabase = None
+httpx = None
 try:
     from supabase import create_client
+    import httpx as httpx_module
+    httpx = httpx_module
+    
     SUPABASE_URL = os.environ.get("SUPABASE_URL")
     SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
         supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 except Exception as e:
-    print(f"Supabase init error: {e}")
+    print(f"Init error: {e}")
+
+
+def get_yahoo_price(symbol):
+    """Fetch real-time price from Yahoo Finance API."""
+    if not httpx:
+        return None
+    
+    try:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=1d"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.get(url, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                result = data.get("chart", {}).get("result", [])
+                if result and len(result) > 0:
+                    meta = result[0].get("meta", {})
+                    price = meta.get("regularMarketPrice")
+                    if price:
+                        return round(float(price), 2)
+        return None
+    except Exception as e:
+        print(f"Yahoo API error for {symbol}: {e}")
+        return None
 
 
 def get_portfolio_history(user_id):
@@ -87,15 +116,19 @@ def add_asset(data):
         user_id = data.get("user_id")
         ticker = data.get("ticker", "").upper()
         name = data.get("name", ticker)
-        price = float(data.get("price", 0))
         amount = float(data.get("amount", 1))
         asset_type = data.get("type", "stock")
         
         if not user_id or not ticker:
             return {"error": "user_id and ticker are required", "success": False}
         
-        # Insert into assets table (matching schema: symbol, name, type, amount, price)
-        # type must be one of: 'Stock', 'Crypto', 'ETF', 'Bond'
+        # Fetch REAL price from Yahoo instead of using mock data
+        real_price = get_yahoo_price(ticker)
+        if real_price is None:
+            # Fallback to provided price if Yahoo fails
+            real_price = float(data.get("price", 0))
+        
+        # Normalize type to match schema CHECK constraint
         valid_types = {'stock': 'Stock', 'crypto': 'Crypto', 'etf': 'ETF', 'bond': 'Bond'}
         normalized_type = valid_types.get(asset_type.lower(), 'Stock')
         
@@ -103,7 +136,7 @@ def add_asset(data):
             "user_id": user_id,
             "symbol": ticker,
             "name": name,
-            "price": price,
+            "price": real_price,
             "amount": amount,
             "type": normalized_type
         }
