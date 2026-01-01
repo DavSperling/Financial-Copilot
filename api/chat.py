@@ -24,7 +24,92 @@ OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 
 SYSTEM_PROMPT = """Tu es un assistant financier intelligent pour Portfolio Copilot. 
 Réponds en français, sois concis et utilise des emojis 📊💰📈.
-Ne donne pas de conseils financiers spécifiques."""
+Tu as accès aux données du portefeuille de l'utilisateur quand elles sont fournies.
+Fournis des analyses pertinentes basées sur les données réelles.
+Ne donne pas de conseils financiers spécifiques mais aide à comprendre le portefeuille."""
+
+
+def get_user_portfolio(user_id):
+    """Fetch user portfolio from Supabase."""
+    if not supabase or not user_id:
+        return None
+    
+    try:
+        # Get user assets
+        assets_response = supabase.table("assets").select("*").eq("user_id", user_id).execute()
+        assets = assets_response.data or []
+        
+        # Get user profile for context
+        profile_response = supabase.table("user_profiles").select("*").eq("user_id", user_id).execute()
+        profile = profile_response.data[0] if profile_response.data else {}
+        
+        # Calculate portfolio metrics
+        total_value = 0
+        total_invested = 0
+        holdings = []
+        
+        for asset in assets:
+            symbol = asset.get("symbol", "")
+            name = asset.get("name", symbol)
+            quantity = float(asset.get("amount", 0))
+            purchase_price = float(asset.get("purchase_price", 0))
+            current_price = float(asset.get("price", purchase_price))
+            
+            invested = quantity * purchase_price
+            value = quantity * current_price
+            gain = value - invested
+            gain_percent = (gain / invested * 100) if invested > 0 else 0
+            
+            total_value += value
+            total_invested += invested
+            
+            holdings.append({
+                "symbol": symbol,
+                "name": name,
+                "quantity": quantity,
+                "purchase_price": purchase_price,
+                "current_price": current_price,
+                "value": round(value, 2),
+                "invested": round(invested, 2),
+                "gain": round(gain, 2),
+                "gain_percent": round(gain_percent, 2)
+            })
+        
+        total_gain = total_value - total_invested
+        total_gain_percent = (total_gain / total_invested * 100) if total_invested > 0 else 0
+        
+        return {
+            "holdings": holdings,
+            "total_value": round(total_value, 2),
+            "total_invested": round(total_invested, 2),
+            "total_gain": round(total_gain, 2),
+            "total_gain_percent": round(total_gain_percent, 2),
+            "risk_tolerance": profile.get("risk_tolerance", "unknown"),
+            "investment_goals": profile.get("investment_goals", [])
+        }
+    except Exception as e:
+        print(f"Error fetching portfolio: {e}")
+        return None
+
+
+def build_context_prompt(portfolio_data):
+    """Build context string from portfolio data for AI."""
+    if not portfolio_data or not portfolio_data.get("holdings"):
+        return ""
+    
+    context = "\n\n📊 **DONNÉES DU PORTEFEUILLE DE L'UTILISATEUR:**\n"
+    context += f"- Valeur totale: ${portfolio_data['total_value']:,.2f}\n"
+    context += f"- Total investi: ${portfolio_data['total_invested']:,.2f}\n"
+    context += f"- Gain/Perte: ${portfolio_data['total_gain']:,.2f} ({portfolio_data['total_gain_percent']:.1f}%)\n"
+    context += f"- Tolérance au risque: {portfolio_data['risk_tolerance']}\n"
+    
+    context += "\n📈 **POSITIONS:**\n"
+    for h in portfolio_data["holdings"]:
+        status = "🟢" if h["gain"] >= 0 else "🔴"
+        context += f"- {h['symbol']} ({h['name']}): {h['quantity']} shares @ ${h['current_price']:.2f} | "
+        context += f"{status} {h['gain_percent']:+.1f}%\n"
+    
+    return context
 
 
 class handler(BaseHTTPRequestHandler):
@@ -50,6 +135,7 @@ class handler(BaseHTTPRequestHandler):
             data = json.loads(body) if body else {}
             
             message = data.get('message', '')
+            user_id = data.get('user_id', '')
             
             if not message:
                 self.send_response(400)
@@ -59,19 +145,33 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": "message required"}).encode())
                 return
             
+            # Fetch portfolio if user asks about their portfolio
+            portfolio_context = ""
+            portfolio_keywords = ["portefeuille", "portfolio", "analyse", "position", "action", "mes", "mon"]
+            should_fetch_portfolio = any(kw in message.lower() for kw in portfolio_keywords)
+            
+            if should_fetch_portfolio and user_id:
+                portfolio_data = get_user_portfolio(user_id)
+                if portfolio_data:
+                    portfolio_context = build_context_prompt(portfolio_data)
+            
             if not OPENAI_API_KEY or not httpx:
-                # Return fallback response if OpenAI not configured
                 response_text = "🤖 Le chatbot IA nécessite une clé API OpenAI configurée dans les variables d'environnement Vercel (OPENAI_API_KEY)."
             else:
-                # Call OpenAI API with gpt-4o-mini (cheapest model)
+                # Build system prompt with portfolio context
+                full_system_prompt = SYSTEM_PROMPT
+                if portfolio_context:
+                    full_system_prompt += portfolio_context
+                
+                # Call OpenAI API with gpt-4o-mini
                 payload = {
                     "model": "gpt-4o-mini",
                     "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "system", "content": full_system_prompt},
                         {"role": "user", "content": message}
                     ],
                     "temperature": 0.7,
-                    "max_tokens": 512
+                    "max_tokens": 800
                 }
                 
                 headers = {
@@ -79,7 +179,7 @@ class handler(BaseHTTPRequestHandler):
                     "Content-Type": "application/json"
                 }
                 
-                with httpx.Client(timeout=25.0) as client:
+                with httpx.Client(timeout=30.0) as client:
                     resp = client.post(OPENAI_URL, json=payload, headers=headers)
                     if resp.status_code == 200:
                         openai_data = resp.json()
