@@ -59,7 +59,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ view, onNavigate, onLogin })
       }
     } catch (err: any) {
       console.error('Auth error:', err);
-      setError(err.message || 'Une erreur est survenue');
+      setError(err.message || 'An error occurred');
     } finally {
       setIsLoading(false);
     }

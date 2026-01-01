@@ -136,7 +136,11 @@ export default function App() {
           setCurrentView('reset-password');
         } else {
           try {
-            const completed = await hasCompletedOnboarding();
+            // Add timeout to prevent blocking if Supabase is slow
+            const completed = await Promise.race([
+              hasCompletedOnboarding(),
+              new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 2000))
+            ]);
             if (isMounted) setCurrentView(completed ? 'dashboard' : 'onboarding');
           } catch (error) {
             console.error("[Auth] Error checking onboarding status:", error);
