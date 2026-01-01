@@ -107,27 +107,60 @@ export const generateInvestmentChart = async (
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/investment/chart`, {
+        // On Vercel, use /api/investment (no sub-routes)
+        // On local FastAPI, use /api/v1/investment/chart
+        const isVercel = API_BASE_URL === '/api';
+        const url = isVercel
+            ? `${API_BASE_URL}/investment`
+            : `${API_BASE_URL}/investment/chart`;
+
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                monthly_amount: monthlyAmount,
+                initial_amount: initialInvestment,
+                monthly_contribution: monthlyAmount,
                 years: years,
                 annual_return: annualReturn,
-                initial_investment: initialInvestment,
             }),
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || 'Failed to generate chart');
+            // Fallback to local calculation
+            const calc = calculateInvestmentLocally(monthlyAmount, years, annualReturn, initialInvestment);
+            return {
+                chart_image: '',
+                future_value: calc.future_value,
+                total_contributed: calc.total_contributed,
+                total_earnings: calc.total_earnings
+            };
         }
 
-        return await response.json();
+        const data = await response.json();
+
+        // Transform Vercel response to match expected format
+        if (isVercel && data.summary) {
+            return {
+                chart_image: '',
+                future_value: data.summary.final_balance,
+                total_contributed: data.summary.total_invested,
+                total_earnings: data.summary.total_gains
+            };
+        }
+
+        return data;
     } catch (error) {
         console.error('Error generating chart:', error);
-        throw error;
+        // Fallback to local calculation instead of throwing
+        const calc = calculateInvestmentLocally(monthlyAmount, years, annualReturn, initialInvestment);
+        return {
+            chart_image: '',
+            future_value: calc.future_value,
+            total_contributed: calc.total_contributed,
+            total_earnings: calc.total_earnings
+        };
     }
 };
+

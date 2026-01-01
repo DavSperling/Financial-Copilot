@@ -35,23 +35,36 @@ export interface ClosePositionResponse {
     profit_loss_percent: number;
 }
 
+// Helper to detect Vercel environment
+const isVercel = () => API_BASE_URL === '/api';
+
 export const closePosition = async (request: ClosePositionRequest): Promise<ClosePositionResponse> => {
     if (!isBackendAvailable() || !API_BASE_URL) {
         throw new Error('This feature requires the backend. Please run the Python server locally.');
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/portfolio/close`, {
+        // On Vercel, use /api/transactions with action=close
+        // On local FastAPI, use /api/v1/portfolio/close
+        const url = isVercel()
+            ? `${API_BASE_URL}/transactions`
+            : `${API_BASE_URL}/portfolio/close`;
+
+        const body = isVercel()
+            ? { ...request, action: 'close' }
+            : request;
+
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(request)
+            body: JSON.stringify(body)
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Failed to close position');
+            const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+            throw new Error(error.error || error.detail || 'Failed to close position');
         }
 
         return await response.json();
@@ -72,7 +85,13 @@ export const getTransactions = async (userId: string): Promise<TransactionsRespo
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/portfolio/transactions?user_id=${userId}`, {
+        // On Vercel, use /api/transactions
+        // On local FastAPI, use /api/v1/portfolio/transactions
+        const url = isVercel()
+            ? `${API_BASE_URL}/transactions?user_id=${userId}`
+            : `${API_BASE_URL}/portfolio/transactions?user_id=${userId}`;
+
+        const response = await fetch(url, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -80,14 +99,23 @@ export const getTransactions = async (userId: string): Promise<TransactionsRespo
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Failed to fetch transactions');
+            // Return empty instead of throwing
+            return {
+                transactions: [],
+                total_realized_gains: 0,
+                total_transactions: 0
+            };
         }
 
         return await response.json();
     } catch (error) {
         console.error('Error fetching transactions:', error);
-        throw error;
+        // Return empty data instead of throwing
+        return {
+            transactions: [],
+            total_realized_gains: 0,
+            total_transactions: 0
+        };
     }
 };
 
@@ -120,8 +148,7 @@ export const getPortfolioHistory = async (userId: string): Promise<PortfolioHist
 
     try {
         // Support both local FastAPI and Vercel serverless
-        const isVercel = API_BASE_URL === '/api';
-        const url = isVercel
+        const url = isVercel()
             ? `${API_BASE_URL}/portfolio?user_id=${userId}`  // Vercel /api/portfolio
             : `${API_BASE_URL}/portfolio/history?user_id=${userId}`; // FastAPI
 
