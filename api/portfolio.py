@@ -94,15 +94,18 @@ def add_asset(data):
         if not user_id or not ticker:
             return {"error": "user_id and ticker are required", "success": False}
         
-        # Insert into assets table
+        # Insert into assets table (matching schema: symbol, name, type, amount, price)
+        # type must be one of: 'Stock', 'Crypto', 'ETF', 'Bond'
+        valid_types = {'stock': 'Stock', 'crypto': 'Crypto', 'etf': 'ETF', 'bond': 'Bond'}
+        normalized_type = valid_types.get(asset_type.lower(), 'Stock')
+        
         asset_data = {
             "user_id": user_id,
             "symbol": ticker,
             "name": name,
             "price": price,
-            "purchase_price": price,
             "amount": amount,
-            "type": asset_type
+            "type": normalized_type
         }
         
         result = supabase.table("assets").insert(asset_data).execute()
