@@ -12,9 +12,9 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ userId }) => {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [suggestions, setSuggestions] = useState<string[]>([
-        "Analyse mon portefeuille",
-        "C'est quoi un ETF ?",
-        "Comment diversifier ?"
+        "Analyze my portfolio",
+        "What is an ETF?",
+        "How to diversify?"
     ]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -43,7 +43,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ userId }) => {
         } catch (error: any) {
             const errorMessage: ChatMessage = {
                 role: 'assistant',
-                content: "Désolé, je n'ai pas pu traiter votre demande. Veuillez réessayer. 😕"
+                content: "Sorry, I couldn't process your request. Please try again. 😕"
             };
             setMessages(prev => [...prev, errorMessage]);
         } finally {
@@ -87,7 +87,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ userId }) => {
                             </div>
                             <div>
                                 <h3 className="font-bold">Portfolio Copilot AI</h3>
-                                <p className="text-xs text-white/70">Votre assistant financier</p>
+                                <p className="text-xs text-white/70">Your financial assistant</p>
                             </div>
                         </div>
                         <button
@@ -106,9 +106,9 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ userId }) => {
                                 <div className="bg-gradient-to-r from-indigo-100 to-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <Sparkles className="text-indigo-600" size={28} />
                                 </div>
-                                <h4 className="font-semibold text-slate-800 mb-2">Bonjour ! 👋</h4>
+                                <h4 className="font-semibold text-slate-800 mb-2">Hello! 👋</h4>
                                 <p className="text-sm text-slate-500 mb-4">
-                                    Je suis votre assistant IA. Posez-moi vos questions sur votre portefeuille ou l'investissement en général.
+                                    I'm your AI assistant. Ask me questions about your portfolio or investing in general.
                                 </p>
                             </div>
                         )}
@@ -125,8 +125,8 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ userId }) => {
                                 )}
                                 <div
                                     className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${msg.role === 'user'
-                                            ? 'bg-indigo-600 text-white rounded-br-md'
-                                            : 'bg-white border border-slate-200 text-slate-700 rounded-bl-md shadow-sm'
+                                        ? 'bg-indigo-600 text-white rounded-br-md'
+                                        : 'bg-white border border-slate-200 text-slate-700 rounded-bl-md shadow-sm'
                                         }`}
                                 >
                                     <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
@@ -178,7 +178,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ userId }) => {
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyPress={handleKeyPress}
-                                placeholder="Posez votre question..."
+                                placeholder="Ask your question..."
                                 className="flex-1 border border-slate-200 rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                                 disabled={isLoading}
                             />

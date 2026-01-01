@@ -22,11 +22,11 @@ except Exception as e:
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 
-SYSTEM_PROMPT = """Tu es un assistant financier intelligent pour Portfolio Copilot. 
-Réponds en français, sois concis et utilise des emojis 📊💰📈.
-Tu as accès aux données du portefeuille de l'utilisateur quand elles sont fournies.
-Fournis des analyses pertinentes basées sur les données réelles.
-Ne donne pas de conseils financiers spécifiques mais aide à comprendre le portefeuille."""
+SYSTEM_PROMPT = """You are an intelligent financial assistant for Portfolio Copilot.
+Respond in English, be concise and use emojis 📊💰📈.
+You have access to the user's portfolio data when provided.
+Provide relevant analysis based on real data.
+Do not give specific financial advice but help understand the portfolio."""
 
 
 def get_user_portfolio(user_id):
@@ -97,11 +97,11 @@ def build_context_prompt(portfolio_data):
     if not portfolio_data or not portfolio_data.get("holdings"):
         return ""
     
-    context = "\n\n📊 **DONNÉES DU PORTEFEUILLE DE L'UTILISATEUR:**\n"
-    context += f"- Valeur totale: ${portfolio_data['total_value']:,.2f}\n"
-    context += f"- Total investi: ${portfolio_data['total_invested']:,.2f}\n"
-    context += f"- Gain/Perte: ${portfolio_data['total_gain']:,.2f} ({portfolio_data['total_gain_percent']:.1f}%)\n"
-    context += f"- Tolérance au risque: {portfolio_data['risk_tolerance']}\n"
+    context = "\n\n📊 **USER PORTFOLIO DATA:**\n"
+    context += f"- Total Value: ${portfolio_data['total_value']:,.2f}\n"
+    context += f"- Total Invested: ${portfolio_data['total_invested']:,.2f}\n"
+    context += f"- Gain/Loss: ${portfolio_data['total_gain']:,.2f} ({portfolio_data['total_gain_percent']:.1f}%)\n"
+    context += f"- Risk Tolerance: {portfolio_data['risk_tolerance']}\n"
     
     context += "\n📈 **POSITIONS:**\n"
     for h in portfolio_data["holdings"]:
@@ -147,7 +147,7 @@ class handler(BaseHTTPRequestHandler):
             
             # Fetch portfolio if user asks about their portfolio
             portfolio_context = ""
-            portfolio_keywords = ["portefeuille", "portfolio", "analyse", "position", "action", "mes", "mon"]
+            portfolio_keywords = ["portfolio", "analyze", "analysis", "position", "stock", "my", "holdings", "investment"]
             should_fetch_portfolio = any(kw in message.lower() for kw in portfolio_keywords)
             
             if should_fetch_portfolio and user_id:
@@ -156,7 +156,7 @@ class handler(BaseHTTPRequestHandler):
                     portfolio_context = build_context_prompt(portfolio_data)
             
             if not OPENAI_API_KEY or not httpx:
-                response_text = "🤖 Le chatbot IA nécessite une clé API OpenAI configurée dans les variables d'environnement Vercel (OPENAI_API_KEY)."
+                response_text = "🤖 The AI chatbot requires an OpenAI API key configured in Vercel environment variables (OPENAI_API_KEY)."
             else:
                 # Build system prompt with portfolio context
                 full_system_prompt = SYSTEM_PROMPT
@@ -185,15 +185,15 @@ class handler(BaseHTTPRequestHandler):
                         openai_data = resp.json()
                         response_text = openai_data["choices"][0]["message"]["content"].strip()
                     elif resp.status_code == 429:
-                        response_text = "⚠️ Quota OpenAI API épuisé. Veuillez réessayer plus tard."
+                        response_text = "⚠️ OpenAI API quota exhausted. Please try again later."
                     elif resp.status_code == 401:
-                        response_text = "❌ Clé API OpenAI invalide. Veuillez vérifier votre configuration."
+                        response_text = "❌ Invalid OpenAI API key. Please check your configuration."
                     else:
-                        response_text = f"Erreur API OpenAI: {resp.status_code}"
+                        response_text = f"OpenAI API Error: {resp.status_code}"
             
             result = {
                 "response": response_text,
-                "suggestions": ["Analyse mon portefeuille", "Comment diversifier?", "Explique les ETF"]
+                "suggestions": ["Analyze my portfolio", "How to diversify?", "Explain ETFs"]
             }
             
             self.send_response(200)

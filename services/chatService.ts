@@ -19,10 +19,10 @@ export const sendChatMessage = async (
     if (!isBackendAvailable() || !API_BASE_URL) {
         // Return a helpful message when running on GitHub Pages
         return {
-            response: "🚀 Le chatbot IA n'est disponible qu'en mode local avec le backend Python. Déployez le backend FastAPI pour activer cette fonctionnalité!",
+            response: "🚀 The AI chatbot is only available in local mode with the Python backend. Deploy the FastAPI backend to enable this feature!",
             suggestions: [
-                "Comment lancer le backend?",
-                "Voir la documentation",
+                "How to start the backend?",
+                "View documentation",
             ]
         };
     }
