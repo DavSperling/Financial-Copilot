@@ -19,7 +19,7 @@ except Exception as e:
     print(f"Init error: {e}")
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
 
 SYSTEM_PROMPT = """Tu es un assistant financier intelligent pour Portfolio Copilot. 
 Réponds en français, sois concis et utilise des emojis 📊💰📈.
@@ -74,6 +74,8 @@ class handler(BaseHTTPRequestHandler):
                     if resp.status_code == 200:
                         gemini_data = resp.json()
                         response_text = gemini_data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                    elif resp.status_code == 429:
+                        response_text = "⚠️ Quota Gemini API épuisé. Veuillez réessayer plus tard ou utiliser une nouvelle clé API."
                     else:
                         response_text = f"Erreur API Gemini: {resp.status_code}"
             
