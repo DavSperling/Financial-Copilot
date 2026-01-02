@@ -191,6 +191,12 @@ const CalculatorPage: React.FC = () => {
                             />
                             <InvestmentChart
                                 chartImage={result.chart_image}
+                                futureValue={result.future_value}
+                                totalContributed={result.total_contributed}
+                                years={years}
+                                monthlyAmount={monthlyAmount}
+                                initialInvestment={initialInvestment}
+                                annualReturn={annualReturn}
                             />
                         </div>
                     ) : (
