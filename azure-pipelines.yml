@@ -1,4 +1,4 @@
-# Azure DevOps Pipeline - Financial Dashboard (Mac self-hosted)
+# Azure DevOps Pipeline -    Financial Dashboard (Mac self-hosted)
 # Tests Backend + Frontend monolithique + Security
 
 trigger:
