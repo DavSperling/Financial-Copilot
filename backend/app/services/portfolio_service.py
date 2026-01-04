@@ -239,16 +239,54 @@ def get_stock_recommendations(risk_profile: int, user_id: str = None) -> Dict[st
     
     if user_id:
         try:
-            # 1. Fetch User Profile for Initial Investment
-            profile_response = supabase_admin.table("user_profiles").select("initial_investment").eq("user_id", user_id).execute()
+            # 1. Fetch User Profile for Initial Investment and Budget details
+            profile_response = supabase_admin.table("user_profiles").select("initial_investment, monthly_budget, created_at").eq("user_id", user_id).execute()
             if profile_response.data:
-                initial_investment = float(profile_response.data[0].get("initial_investment") or 0)
+                profile = profile_response.data[0]
+                initial_investment = float(profile.get("initial_investment") or 0)
+                monthly_budget = float(profile.get("monthly_budget") or 0)
+                created_at_str = profile.get("created_at")
+                
+                # Logic to calculate total cash injected (initial + monthly contributions)
+                # mirroring the frontend logic in DashboardPage.tsx
+                from datetime import datetime, timedelta
+                from dateutil.relativedelta import relativedelta
+                
+                if created_at_str:
+                    # Parse created_at (handling ISO format)
+                    try:
+                        created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                        now = datetime.now(created_at.tzinfo)
+                        
+                        # Move to next month's 1st
+                        current_check = created_at
+                        if current_check.day > 1:
+                            current_check = current_check + relativedelta(months=1)
+                            current_check = current_check.replace(day=1)
+                        else:
+                             # Frontend logic also skips to next month if day is 1
+                            current_check = current_check + relativedelta(months=1)
+                            current_check = current_check.replace(day=1)
+                            
+                        current_check = current_check.replace(hour=0, minute=0, second=0, microsecond=0)
+                        
+                        months_passed = 0
+                        while current_check <= now:
+                            months_passed += 1
+                            current_check = current_check + relativedelta(months=1)
+                            
+                        total_cash_injected = initial_investment + (monthly_budget * months_passed)
+                    except Exception as e:
+                        print(f"Error parsing date or calculating months: {e}")
+                        total_cash_injected = initial_investment
+                else:
+                    total_cash_injected = initial_investment
                 
                 # 2. Fetch Assets for Total Invested
                 assets_response = supabase_admin.table("assets").select("amount, price").eq("user_id", user_id).execute()
                 total_invested = sum(float(a["amount"]) * float(a["price"]) for a in assets_response.data)
                 
-                remaining_budget = max(0, initial_investment - total_invested)
+                remaining_budget = max(0, total_cash_injected - total_invested)
             else:
                  # If no profile found, assume 0 or handle logic?
                  # Let's assume infinite for now so we don't block fresh users without profile
