@@ -1,6 +1,7 @@
 from http.server import BaseHTTPRequestHandler
 import json
 import os
+from datetime import datetime
 from urllib.parse import parse_qs, urlparse
 
 # Try to import supabase
@@ -83,6 +84,8 @@ def close_position(data):
             "quantity": quantity,
             "purchase_price": purchase_price,
             "sale_price": sale_price,
+            "purchase_date": asset.get("created_at"),
+            "sale_date": datetime.now().isoformat(),
             "total_cost": round(total_cost, 2),
             "total_revenue": round(total_revenue, 2),
             "profit_loss": round(profit_loss, 2),
