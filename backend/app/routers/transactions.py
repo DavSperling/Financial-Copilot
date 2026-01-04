@@ -43,11 +43,15 @@ async def close_position(request: ClosePositionRequest):
     """
     Close a position: Remove from assets and create a transaction record.
     """
+    print(f"[CLOSE] Received request: user_id={request.user_id}, asset_id={request.asset_id}, sale_price={request.sale_price}")
+    
     try:
         # 1. Fetch the asset
         asset_response = supabase_admin.table("assets").select("*").eq("id", request.asset_id).eq("user_id", request.user_id).execute()
+        print(f"[CLOSE] Asset query result: {asset_response.data}")
         
         if not asset_response.data:
+            print(f"[CLOSE] Asset not found!")
             raise HTTPException(status_code=404, detail="Asset not found")
         
         asset = asset_response.data[0]
@@ -76,14 +80,18 @@ async def close_position(request: ClosePositionRequest):
             "profit_loss_percent": round(profit_loss_percent, 2),
             "original_asset_id": asset["id"]
         }
+        print(f"[CLOSE] Transaction data to insert: {transaction_data}")
         
         tx_response = supabase_admin.table("transactions").insert(transaction_data).execute()
+        print(f"[CLOSE] Transaction insert result: {tx_response.data}")
         
         if not tx_response.data:
+            print(f"[CLOSE] Transaction insert failed - no data returned")
             raise HTTPException(status_code=500, detail="Failed to create transaction")
         
         # 3. Delete the asset from portfolio
         delete_response = supabase_admin.table("assets").delete().eq("id", request.asset_id).execute()
+        print(f"[CLOSE] Asset deleted: {delete_response}")
         
         return {
             "message": "Position closed successfully",
@@ -95,7 +103,9 @@ async def close_position(request: ClosePositionRequest):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error closing position: {e}")
+        print(f"[CLOSE] Error closing position: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/transactions", response_model=TransactionsResponse)
