@@ -275,14 +275,26 @@ def get_stock_recommendations(risk_profile: int, user_id: str = None) -> Dict[st
                             months_passed += 1
                             current_check = current_check + relativedelta(months=1)
                             
-                        total_cash_injected = initial_investment + (monthly_budget * months_passed)
+                        # 3. Fetch Realized Gains (Closed Positions)
+                        trans_response = supabase_admin.table("transactions").select("profit_loss").eq("user_id", user_id).execute()
+                        realized_gains = sum(float(t.get("profit_loss") or 0) for t in trans_response.data)
+
+                        # 2. Fetch Assets for Total Invested
+                        assets_response = supabase_admin.table("assets").select("amount, price").eq("user_id", user_id).execute()
+                        total_invested = sum(float(a["amount"]) * float(a["price"]) for a in assets_response.data)
+                        
+                        remaining_budget = max(0, (initial_investment + (monthly_budget * months_passed)) - total_invested + realized_gains)
                     except Exception as e:
                         print(f"Error parsing date or calculating months: {e}")
+                        # Fallback if date parsing or calculation fails
                         total_cash_injected = initial_investment
+                        # 2. Fetch Assets for Total Invested (still needed for remaining_budget)
+                        assets_response = supabase_admin.table("assets").select("amount, price").eq("user_id", user_id).execute()
+                        total_invested = sum(float(a["amount"]) * float(a["price"]) for a in assets_response.data)
+                        # No realized_gains if error, so just initial_investment - total_invested
+                        remaining_budget = max(0, total_cash_injected - total_invested)
                 else:
                     total_cash_injected = initial_investment
-                
-                # 2. Fetch Assets for Total Invested
                 assets_response = supabase_admin.table("assets").select("amount, price").eq("user_id", user_id).execute()
                 total_invested = sum(float(a["amount"]) * float(a["price"]) for a in assets_response.data)
                 

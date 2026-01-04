@@ -188,14 +188,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
         // actually, let's just save the injected cash to state and calc buying power in useMemo or useEffect.
         setTotalCashInjected(totalCashInjected);
 
-        // Fetch transactions for realized gains
-        const { data: transactions } = await supabase
-          .from('transactions')
-          .select('profit_loss')
-          .eq('user_id', user.id);
-
-        const realizedGains = transactions?.reduce((sum, tx) => sum + (tx.profit_loss || 0), 0) || 0;
-        setTotalRealizedGains(realizedGains);
+        // Fetch transactions for realized gains using shared service
+        try {
+          const { total_realized_gains } = await getTransactions(user.id);
+          setTotalRealizedGains(total_realized_gains);
+        } catch (txError) {
+          console.error("Error fetching realized gains:", txError);
+        }
       }
     } catch (e) {
       console.error(e);
