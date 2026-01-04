@@ -71,6 +71,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
   const [sellingLoading, setSellingLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [totalCashInjected, setTotalCashInjected] = useState<number>(0);
+  const [totalRealizedGains, setTotalRealizedGains] = useState<number>(0);
 
   // State for Assets
   const [assets, setAssets] = useState<InvestmentItem[]>([]);
@@ -186,6 +187,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
         // Better: separate the buying power calc to depend on 'assets' and 'profile' state. 
         // actually, let's just save the injected cash to state and calc buying power in useMemo or useEffect.
         setTotalCashInjected(totalCashInjected);
+
+        // Fetch transactions for realized gains
+        const { data: transactions } = await supabase
+          .from('transactions')
+          .select('profit_loss')
+          .eq('user_id', user.id);
+
+        const realizedGains = transactions?.reduce((sum, tx) => sum + (tx.profit_loss || 0), 0) || 0;
+        setTotalRealizedGains(realizedGains);
       }
     } catch (e) {
       console.error(e);
@@ -271,8 +281,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
   const stats = useMemo(() => {
     const totalValue = assets.reduce((sum, item) => sum + item.value, 0);
     const totalCostBasis = assets.reduce((sum, item) => sum + (item.costBasis || 0), 0);
-    const totalGain = totalValue - totalCostBasis;
-    const totalGainPercent = totalCostBasis > 0 ? (totalGain / totalCostBasis) * 100 : 0;
+
+    // Total Gain = (Current Value - Cost Basis) + Realized Gains
+    const totalGain = (totalValue - totalCostBasis) + totalRealizedGains;
+
+    // Buying Power = Cash Injected - Cost of Open Assets + Realized Gains
+    const buyingPower = Math.max(0, totalCashInjected - totalCostBasis + totalRealizedGains);
+
+    // Total Gain Percent = (Total Gain / (Total Cost Basis + (buyingPower? or Injected?))) ?
+    // Simplest: Total Gain / Total Cost Basis (of currently held) - inaccurate if realized is huge.
+    // Better: Total Gain / Total Cash Injected (Total Capital Deployed + Available) -> Total Yield on Account
+    // Let's stick to cost basis for now but realized gain makes it tricky.
+    // User wants to see generally how much they are up. 
+    // Let's us (Total Gain / Total Cash Injected) * 100 if Injected > 0
+    const totalGainPercent = totalCashInjected > 0 ? (totalGain / totalCashInjected) * 100 : 0;
 
     return {
       totalValue,
@@ -281,9 +303,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
       totalGainPercent,
       dayChange: totalGain * 0.05, // Approximation
       dayChangePercent: totalGainPercent * 0.05,
-      buyingPower: Math.max(0, totalCashInjected - totalCostBasis)
+      buyingPower
     };
-  }, [assets, totalCashInjected]);
+  }, [assets, totalCashInjected, totalRealizedGains]);
 
   const handleAddAsset = async (e: React.FormEvent) => {
     e.preventDefault();

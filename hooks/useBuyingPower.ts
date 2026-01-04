@@ -79,8 +79,19 @@ export const useBuyingPower = (userId: string | undefined): BuyingPowerData => {
 
                 setTotalCostBasis(calculatedCostBasis);
 
-                // 3. Final Calculation
-                setBuyingPower(Math.max(0, calculatedCash - calculatedCostBasis));
+                // 3. Fetch Realized Gains (closed positions)
+                const { data: transactions, error: txError } = await supabase
+                    .from('transactions')
+                    .select('profit_loss')
+                    .eq('user_id', userId);
+
+                if (txError) throw txError;
+
+                const realizedGains = transactions?.reduce((sum, tx) => sum + (tx.profit_loss || 0), 0) || 0;
+
+                // 4. Final Calculation
+                // Buying Power = Cash Injected - Cost of Open Assets + Realized Gains
+                setBuyingPower(Math.max(0, calculatedCash - calculatedCostBasis + realizedGains));
 
             } catch (err: any) {
                 console.error("Error calculating buying power:", err);

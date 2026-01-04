@@ -136,11 +136,15 @@ class handler(BaseHTTPRequestHandler):
                                 except:
                                     pass # Fallback to initial only on date parse error
 
-                            # 2. Fetch Assets
+                            # 2. Fetch Assets for Total Invested
                             assets_response = supabase.from_("assets").select("amount, price").eq("user_id", user_id).execute()
                             total_invested = sum(float(a["amount"]) * float(a["price"]) for a in assets_response.data)
+
+                            # 3. Fetch Realized Gains
+                            transactions_response = supabase.from_("transactions").select("profit_loss").eq("user_id", user_id).execute()
+                            realized_gains = sum(float(t["profit_loss"] or 0) for t in transactions_response.data)
                             
-                            remaining_budget = max(0, total_cash_injected - total_invested)
+                            remaining_budget = max(0, total_cash_injected - total_invested + realized_gains)
                 except Exception as e:
                     print(f"Error calculating budget in Vercel function: {e}")
                     # Keep default 1000 or set to -1?
