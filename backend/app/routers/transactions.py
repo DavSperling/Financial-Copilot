@@ -53,15 +53,27 @@ async def close_position(request: ClosePositionRequest):
         asset = asset_response.data[0]
         
         # 2. Create transaction record
+        quantity = float(asset["amount"])
+        purchase_price = float(asset["price"])
+        total_cost = quantity * purchase_price
+        total_revenue = quantity * request.sale_price
+        profit_loss = total_revenue - total_cost
+        profit_loss_percent = ((request.sale_price - purchase_price) / purchase_price * 100) if purchase_price > 0 else 0
+        
         transaction_data = {
             "user_id": request.user_id,
             "symbol": asset["symbol"],
             "name": asset["name"],
             "type": asset["type"],
-            "quantity": float(asset["amount"]),
-            "purchase_price": float(asset["price"]),
+            "quantity": quantity,
+            "purchase_price": purchase_price,
             "sale_price": request.sale_price,
             "purchase_date": asset["created_at"],
+            "sale_date": datetime.now().isoformat(),
+            "total_cost": round(total_cost, 2),
+            "total_revenue": round(total_revenue, 2),
+            "profit_loss": round(profit_loss, 2),
+            "profit_loss_percent": round(profit_loss_percent, 2),
             "original_asset_id": asset["id"]
         }
         
@@ -72,12 +84,6 @@ async def close_position(request: ClosePositionRequest):
         
         # 3. Delete the asset from portfolio
         delete_response = supabase_admin.table("assets").delete().eq("id", request.asset_id).execute()
-        
-        # Calculate profit/loss for response
-        quantity = float(asset["amount"])
-        purchase_price = float(asset["price"])
-        profit_loss = (request.sale_price - purchase_price) * quantity
-        profit_loss_percent = ((request.sale_price - purchase_price) / purchase_price * 100) if purchase_price > 0 else 0
         
         return {
             "message": "Position closed successfully",
