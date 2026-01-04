@@ -103,7 +103,7 @@ export const getStockRecommendations = async (profile: number, userId?: string):
         if (isVercel() && !data.recommendations) {
             // Transform Vercel response to match expected format
             return {
-                remaining_budget: 1000,
+                remaining_budget: -1,
                 recommendations: []
             };
         }

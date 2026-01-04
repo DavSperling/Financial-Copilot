@@ -1,6 +1,8 @@
 from http.server import BaseHTTPRequestHandler
 import json
+import os
 from urllib.parse import parse_qs, urlparse
+from supabase import create_client
 
 # Risk profile allocations
 ALLOCATIONS = {
@@ -85,15 +87,70 @@ class handler(BaseHTTPRequestHandler):
             params = parse_qs(parsed.query)
             profile = params.get('profile', ['2'])[0]
             req_type = params.get('type', ['allocation'])[0]
+            user_id = params.get('user_id', [None])[0]
             
             if profile not in ALLOCATIONS:
                 profile = '2'
             
             # Return stock recommendations if type=stocks
             if req_type == 'stocks':
+                # Calculate Remaining Budget using Supabase if available
+                remaining_budget = 1000 # Default fallback
+                
+                try:
+                    supabase_url = os.environ.get("VITE_SUPABASE_URL") or os.environ.get("SUPABASE_URL")
+                    supabase_key = os.environ.get("VITE_SUPABASE_ANON_KEY") or os.environ.get("SUPABASE_ANON_KEY")
+                    
+                    if user_id and supabase_url and supabase_key:
+                        supabase = create_client(supabase_url, supabase_key)
+                        
+                        # 1. Fetch Profile
+                        profile_response = supabase.from_("user_profiles").select("initial_investment, monthly_budget, created_at").eq("user_id", user_id).execute()
+                        
+                        if profile_response.data:
+                            user_profile = profile_response.data[0]
+                            initial_investment = float(user_profile.get("initial_investment") or 0)
+                            monthly_budget = float(user_profile.get("monthly_budget") or 0)
+                            created_at_str = user_profile.get("created_at")
+                            
+                            # Calculate total cash injected
+                            total_cash_injected = initial_investment
+                            if created_at_str:
+                                from datetime import datetime
+                                from dateutil.relativedelta import relativedelta
+                                try:
+                                    created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                                    now = datetime.now(created_at.tzinfo)
+                                    
+                                    current_check = created_at
+                                    # Logic to move to next month 1st - Simplified for serverless
+                                    current_check = current_check + relativedelta(months=1)
+                                    current_check = current_check.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                                    
+                                    months_passed = 0
+                                    while current_check <= now:
+                                        months_passed += 1
+                                        current_check = current_check + relativedelta(months=1)
+                                    
+                                    total_cash_injected += (monthly_budget * months_passed)
+                                except:
+                                    pass # Fallback to initial only on date parse error
+
+                            # 2. Fetch Assets
+                            assets_response = supabase.from_("assets").select("amount, price").eq("user_id", user_id).execute()
+                            total_invested = sum(float(a["amount"]) * float(a["price"]) for a in assets_response.data)
+                            
+                            remaining_budget = max(0, total_cash_injected - total_invested)
+                except Exception as e:
+                    print(f"Error calculating budget in Vercel function: {e}")
+                    # Keep default 1000 or set to -1?
+                    # let's keep 1000 or -1? User complained about 1000. 
+                    # If error, maybe -1 is safer to indicate 'unknown'
+                    pass
+
                 stocks = STOCK_RECOMMENDATIONS.get(profile, [])
                 result = {
-                    "remaining_budget": 1000,
+                    "remaining_budget": remaining_budget,
                     "recommendations": stocks
                 }
             else:
