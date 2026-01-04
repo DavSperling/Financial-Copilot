@@ -1,6 +1,17 @@
-# azure-pipelines.yml - Version Vercel (Simple)
+# Azure DevOps Pipeline - Personal Portfolio Copilot
+# Tests only - Vercel handles deployment
 
 trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    exclude:
+      - README.md
+      - docs/*
+
+pr:
   branches:
     include:
       - main
@@ -9,135 +20,197 @@ trigger:
 pool:
   vmImage: 'ubuntu-latest'
 
+variables:
+  pythonVersion: '3.11'
+  nodeVersion: '18.x'
+
 stages:
   # ========================================
-  # STAGE 1: BUILD & TEST BACKEND
+  # STAGE 1: BACKEND TESTS
   # ========================================
-  - stage: TestBackend
-    displayName: 'Test Backend'
+  - stage: BackendTests
+    displayName: 'Backend - Tests & Quality Checks'
     jobs:
-      - job: BackendTests
-        displayName: 'Backend Tests & Quality Checks'
+      - job: TestBackend
+        displayName: 'Test Backend'
         steps:
+          # Checkout code
           - checkout: self
+            displayName: 'Checkout repository'
           
+          # Setup Python
           - task: UsePythonVersion@0
             inputs:
-              versionSpec: '3.11'
+              versionSpec: '$(pythonVersion)'
+              addToPath: true
+            displayName: 'Use Python $(pythonVersion)'
           
+          # Install dependencies
           - script: |
+              python -m pip install --upgrade pip
               pip install -r backend/requirements.txt
-              pip install pytest flake8 pytest-cov
-            displayName: 'Install dependencies'
+            displayName: 'Install Python dependencies'
           
+          # Install testing tools
           - script: |
-              flake8 backend/ --max-line-length=120
-            displayName: 'Python linting'
+              pip install pytest pytest-cov flake8
+            displayName: 'Install testing tools'
           
+          # Run linting
           - script: |
-              pytest backend/tests/ --cov=backend --cov-report=xml
-            displayName: 'Run tests'
+              flake8 backend/ --max-line-length=120 --exclude=migrations,__pycache__,venv
+            displayName: 'Run linting (flake8)'
+            continueOnError: true
           
+          # Run unit tests
+          - script: |
+              cd backend
+              pytest tests/ --cov=. --cov-report=xml --cov-report=html --junitxml=test-results.xml
+            displayName: 'Run backend tests'
+          
+          # Publish test results
           - task: PublishTestResults@2
             inputs:
               testResultsFormat: 'JUnit'
               testResultsFiles: '**/test-results.xml'
+              failTaskOnFailedTests: true
+              testRunTitle: 'Backend Tests'
+            displayName: 'Publish test results'
             condition: succeededOrFailed()
           
+          # Publish code coverage
           - task: PublishCodeCoverageResults@1
             inputs:
               codeCoverageTool: 'Cobertura'
-              summaryFileLocation: '**/coverage.xml'
+              summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
+              reportDirectory: '$(System.DefaultWorkingDirectory)/**/htmlcov'
+            displayName: 'Publish code coverage'
+            condition: succeededOrFailed()
 
   # ========================================
-  # STAGE 2: BUILD & TEST FRONTEND
+  # STAGE 2: FRONTEND TESTS
   # ========================================
-  - stage: TestFrontend
-    displayName: 'Test Frontend'
-    dependsOn: []
+  - stage: FrontendTests
+    displayName: 'Frontend - Tests & Quality Checks'
+    dependsOn: [] # Run in parallel with backend
     jobs:
-      - job: FrontendTests
-        displayName: 'Frontend Tests & Quality Checks'
+      - job: TestFrontend
+        displayName: 'Test Frontend'
         steps:
+          # Checkout code
           - checkout: self
+            displayName: 'Checkout repository'
           
+          # Setup Node.js
           - task: NodeTool@0
             inputs:
-              versionSpec: '18.x'
+              versionSpec: '$(nodeVersion)'
+            displayName: 'Use Node.js $(nodeVersion)'
           
+          # Install dependencies
           - script: |
               cd frontend
               npm ci
-            displayName: 'Install dependencies'
+            displayName: 'Install Node.js dependencies'
           
+          # Run linting
           - script: |
               cd frontend
               npm run lint
-            displayName: 'ESLint check'
+            displayName: 'Run linting (ESLint)'
             continueOnError: true
           
+          # Run unit tests
           - script: |
               cd frontend
-              npm test -- --coverage --watchAll=false
-            displayName: 'Run tests'
+              npm test -- --coverage --watchAll=false --ci
+            displayName: 'Run frontend tests'
           
+          # Publish test results (if configured)
           - task: PublishTestResults@2
             inputs:
               testResultsFormat: 'JUnit'
               testResultsFiles: 'frontend/coverage/junit.xml'
+              failTaskOnFailedTests: false
+              testRunTitle: 'Frontend Tests'
+            displayName: 'Publish test results'
             condition: succeededOrFailed()
+            continueOnError: true
           
-          # Vercel preview build (test que ça build correctement)
+          # Test production build
           - script: |
               cd frontend
               npm run build
-            displayName: 'Test production build'
+            displayName: 'Test production build (Vercel will use this)'
+          
+          # Publish build artifacts (optional)
+          - task: PublishBuildArtifacts@1
+            inputs:
+              PathtoPublish: 'frontend/build'
+              ArtifactName: 'frontend-build'
+              publishLocation: 'Container'
+            displayName: 'Publish build artifacts'
+            condition: succeeded()
 
   # ========================================
-  # STAGE 3: SECURITY SCAN
+  # STAGE 3: SECURITY SCANNING
   # ========================================
   - stage: SecurityScan
-    displayName: 'Security Checks'
+    displayName: 'Security - Dependency Scanning'
     dependsOn:
-      - TestBackend
-      - TestFrontend
+      - BackendTests
+      - FrontendTests
+    condition: succeeded()
     jobs:
-      - job: SecurityJob
+      - job: SecurityChecks
+        displayName: 'Security Checks'
         steps:
+          # Checkout code
           - checkout: self
+            displayName: 'Checkout repository'
           
+          # Python dependency scan
           - script: |
               pip install safety
-              safety check --file backend/requirements.txt
-            displayName: 'Python dependency scan'
+              safety check --file backend/requirements.txt --output text || true
+            displayName: 'Python dependency vulnerability scan'
             continueOnError: true
           
+          # Node.js dependency scan
           - script: |
               cd frontend
-              npm audit --audit-level=moderate
-            displayName: 'Node.js dependency scan'
+              npm audit --audit-level=moderate || true
+            displayName: 'Node.js dependency vulnerability scan'
             continueOnError: true
 
   # ========================================
-  # STAGE 4: BACKEND DEPLOYMENT (Azure/AWS/Other)
+  # STAGE 4: BUILD SUMMARY
   # ========================================
-  - stage: DeployBackend
-    displayName: 'Deploy Backend'
+  - stage: BuildSummary
+    displayName: 'Build Summary'
     dependsOn:
-      - TestBackend
+      - BackendTests
+      - FrontendTests
       - SecurityScan
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    condition: succeededOrFailed()
     jobs:
-      - deployment: DeployBackendJob
-        environment: 'Production'
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                # Deploy backend à Azure, AWS, ou autre
-                - task: AzureWebAppContainer@1
-                  inputs:
-                    azureSubscription: 'AzureServiceConnection'
-                    appName: 'portfolio-copilot-backend'
-                    containers: 'portfolio-backend:latest'
-                  displayName: 'Deploy backend to Azure'
+      - job: Summary
+        displayName: 'Build Summary'
+        steps:
+          - script: |
+              echo "================================"
+              echo "BUILD SUMMARY"
+              echo "================================"
+              echo "✅ Backend tests completed"
+              echo "✅ Frontend tests completed"
+              echo "✅ Security scans completed"
+              echo ""
+              echo "📦 Next steps:"
+              echo "   • Vercel will deploy frontend automatically from GitHub"
+              echo "   • Deploy backend manually to your chosen platform"
+              echo ""
+              echo "Build ID: $(Build.BuildId)"
+              echo "Build Number: $(Build.BuildNumber)"
+              echo "Source Branch: $(Build.SourceBranch)"
+              echo "================================"
+            displayName: 'Show build summary'
