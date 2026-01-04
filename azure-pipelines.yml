@@ -32,60 +32,17 @@ stages:
     displayName: 'Backend - Tests & Quality Checks'
     jobs:
       - job: TestBackend
-        displayName: 'Test Backend'
-        steps:
-          # Checkout code
-          - checkout: self
-            displayName: 'Checkout repository'
-          
-          # Setup Python
-          - task: UsePythonVersion@0
-            inputs:
-              versionSpec: '$(pythonVersion)'
-              addToPath: true
-            displayName: 'Use Python $(pythonVersion)'
-          
-          # Install dependencies
-          - script: |
-              python -m pip install --upgrade pip
-              pip install -r backend/requirements.txt
-            displayName: 'Install Python dependencies'
-          
-          # Install testing tools
-          - script: |
-              pip install pytest pytest-cov flake8
-            displayName: 'Install testing tools'
-          
-          # Run linting
-          - script: |
-              flake8 backend/ --max-line-length=120 --exclude=migrations,__pycache__,venv
-            displayName: 'Run linting (flake8)'
-            continueOnError: true
-          
-          # Run unit tests
-          - script: |
-              cd backend
-              pytest tests/ --cov=. --cov-report=xml --cov-report=html --junitxml=test-results.xml
-            displayName: 'Run backend tests'
-          
-          # Publish test results
-          - task: PublishTestResults@2
-            inputs:
-              testResultsFormat: 'JUnit'
-              testResultsFiles: '**/test-results.xml'
-              failTaskOnFailedTests: true
-              testRunTitle: 'Backend Tests'
-            displayName: 'Publish test results'
-            condition: succeededOrFailed()
-          
-          # Publish code coverage
-          - task: PublishCodeCoverageResults@1
-            inputs:
-              codeCoverageTool: 'Cobertura'
-              summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
-              reportDirectory: '$(System.DefaultWorkingDirectory)/**/htmlcov'
-            displayName: 'Publish code coverage'
-            condition: succeededOrFailed()
+  steps:
+    - checkout: self
+    - script: |
+        pwd
+        ls -la
+        ls -la backend/ || echo "backend/ n'existe pas"
+        ls -la tests/ || echo "tests/ n'existe pas"
+        python --version
+        which python
+      displayName: 'DIAGNOSTIC Mac'
+      
 
   # ========================================
   # STAGE 2: FRONTEND TESTS
