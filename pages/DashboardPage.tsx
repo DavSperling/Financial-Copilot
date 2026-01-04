@@ -4,7 +4,7 @@ import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { supabase, SUPABASE_URL } from '../supabaseClient';
 import { getPrices } from '../services/marketService';
-import { closePosition, getPortfolioHistory, PortfolioHistoryPoint } from '../services/transactionService';
+import { closePosition, getPortfolioHistory, PortfolioHistoryPoint, getTransactions } from '../services/transactionService';
 import { getPortfolioAnalysis, PortfolioAnalysis } from '../services/analyticsService';
 import {
   LayoutDashboard,
