@@ -64,6 +64,8 @@ async def close_position(request: ClosePositionRequest):
         profit_loss = total_revenue - total_cost
         profit_loss_percent = ((request.sale_price - purchase_price) / purchase_price * 100) if purchase_price > 0 else 0
         
+        # NOTE: Do NOT include total_cost, total_revenue, profit_loss, profit_loss_percent
+        # These are GENERATED columns in PostgreSQL - calculated automatically
         transaction_data = {
             "user_id": request.user_id,
             "symbol": asset["symbol"],
@@ -74,11 +76,8 @@ async def close_position(request: ClosePositionRequest):
             "sale_price": request.sale_price,
             "purchase_date": asset["created_at"],
             "sale_date": datetime.now().isoformat(),
-            "total_cost": round(total_cost, 2),
-            "total_revenue": round(total_revenue, 2),
-            "profit_loss": round(profit_loss, 2),
-            "profit_loss_percent": round(profit_loss_percent, 2),
             "original_asset_id": asset["id"]
+            # PostgreSQL will auto-calculate: total_cost, total_revenue, profit_loss, profit_loss_percent
         }
         print(f"[CLOSE] Transaction data to insert: {transaction_data}")
         

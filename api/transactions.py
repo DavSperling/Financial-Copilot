@@ -76,6 +76,8 @@ def close_position(data):
         profit_loss_percent = (profit_loss / total_cost * 100) if total_cost > 0 else 0
         
         # Create transaction record
+        # NOTE: Do NOT include total_cost, total_revenue, profit_loss, profit_loss_percent
+        # These are GENERATED columns in PostgreSQL - calculated automatically
         transaction_data = {
             "user_id": user_id,
             "symbol": asset.get("symbol"),
@@ -85,11 +87,8 @@ def close_position(data):
             "purchase_price": purchase_price,
             "sale_price": sale_price,
             "purchase_date": asset.get("created_at"),
-            "sale_date": datetime.now().isoformat(),
-            "total_cost": round(total_cost, 2),
-            "total_revenue": round(total_revenue, 2),
-            "profit_loss": round(profit_loss, 2),
-            "profit_loss_percent": round(profit_loss_percent, 2)
+            "sale_date": datetime.now().isoformat()
+            # PostgreSQL will auto-calculate: total_cost, total_revenue, profit_loss, profit_loss_percent
         }
         
         print(f"[CLOSE] Inserting transaction: {transaction_data}")
