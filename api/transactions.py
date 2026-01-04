@@ -92,21 +92,27 @@ def close_position(data):
             "profit_loss_percent": round(profit_loss_percent, 2)
         }
         
-        # Try to insert transaction (table might not exist)
-        try:
-            supabase.table("transactions").insert(transaction_data).execute()
-        except Exception as e:
-            print(f"Could not save transaction (table may not exist): {e}")
+        print(f"[CLOSE] Inserting transaction: {transaction_data}")
         
-        # Delete the asset
+        # Insert transaction - this MUST succeed before we delete the asset
+        tx_response = supabase.table("transactions").insert(transaction_data).execute()
+        
+        if not tx_response.data:
+            print(f"[CLOSE] Transaction insert returned no data!")
+            return {"error": "Failed to save transaction", "success": False}
+        
+        print(f"[CLOSE] Transaction saved: {tx_response.data}")
+        
+        # Only delete the asset AFTER transaction is saved successfully
         supabase.table("assets").delete().eq("id", asset_id).execute()
+        print(f"[CLOSE] Asset {asset_id} deleted")
         
         return {
             "success": True,
             "message": "Position closed successfully",
             "profit_loss": round(profit_loss, 2),
             "profit_loss_percent": round(profit_loss_percent, 2),
-            "transaction": transaction_data
+            "transaction": tx_response.data[0]
         }
         
     except Exception as e:
