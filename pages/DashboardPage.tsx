@@ -973,20 +973,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
                 <StatCard
                   label="Total Value"
                   value={`$${stats.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                  trend={stats.dayChangePercent}
-                  icon={<DollarSign className="text-primary-600" size={24} />}
                 />
                 <StatCard
                   label="Total Gain"
-                  value={`+$${stats.totalGain.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                  subValue={`${stats.totalGainPercent}% all time`}
+                  value={`${stats.totalGain >= 0 ? '+' : ''}$${Math.abs(stats.totalGain).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  subValue={`${stats.totalGainPercent.toFixed(2)}% all time`}
                   trend={stats.totalGainPercent}
-                  isPositive={true}
-                  icon={<TrendingUp className="text-emerald-600" size={24} />}
+                  isPositive={stats.totalGain >= 0}
+                  icon={<TrendingUp className={stats.totalGain >= 0 ? "text-emerald-600" : "text-red-500"} size={24} />}
                 />
                 <StatCard
                   label="Day Change"
-                  value={`+$${stats.dayChange.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  value={`$${stats.dayChange.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   trend={stats.dayChangePercent}
                   icon={<ArrowUpRight className="text-secondary-600" size={24} />}
                 />
