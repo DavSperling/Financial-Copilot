@@ -18,22 +18,19 @@ pr:
       - develop
 
 pool:
-  name: 'macpool'
+  name: 'macpool'  # OK ✅
 
 variables:
   pythonVersion: '3.11'
   nodeVersion: '18.x'
 
 stages:
-  # ========================================
-  # STAGE 1: BACKEND TESTS
-  # ========================================
-- stage: BackendTests
+  - stage: BackendTests
     displayName: 'Backend - Tests & Quality Checks'
     jobs:
       - job: TestBackend
-        displayName: 'Test Backend'          # ← Ajoute ça
-        steps:                               # ← 6 espaces (3 niveaux)
+        displayName: 'Test Backend'
+        steps:                          # ← 6 espaces exactement
           - checkout: self
             displayName: 'Checkout repository'
           - script: |
@@ -44,6 +41,7 @@ stages:
               python --version
               which python
             displayName: 'DIAGNOSTIC Mac'
+
       
 
   # ========================================
