@@ -819,10 +819,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
         flex flex-col
       `}>
         <div className="h-16 flex items-center px-6 border-b border-slate-100">
-          <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center text-white mr-3">
-            <TrendingUp size={20} />
-          </div>
-          <span className="text-xl font-bold text-slate-900 dark:text-white font-display">Copilot</span>
+          <img src="/public/logo-icon.png" alt="BegInvest" className="w-10 h-10 object-contain mr-3" />
+          <span className="text-xl font-bold text-slate-900 dark:text-white font-display">BegInvest</span>
         </div>
 
         <nav className="flex-1 px-4 py-6 space-y-1">

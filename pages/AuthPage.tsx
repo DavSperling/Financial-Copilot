@@ -86,7 +86,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ view, onNavigate, onLogin })
             Start your journey to financial freedom today.
           </h2>
           <p className="text-slate-300 text-lg leading-relaxed">
-            Join the community of smart investors who use Portfolio Copilot to track, analyze, and optimize their wealth.
+            Join the community of smart investors who use BegInvest to track, analyze, and optimize their wealth.
           </p>
         </div>
       </div>

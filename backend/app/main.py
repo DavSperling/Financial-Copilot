@@ -10,8 +10,8 @@ logging.basicConfig(level=logging.INFO)
 settings = get_settings()
 
 app = FastAPI(
-    title="Personal Portfolio Copilot API",
-    description="Backend API for Personal Portfolio Copilot",
+    title="BegInvest API",
+    description="Backend API for BegInvest - Smart Growth Investing",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
