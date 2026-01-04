@@ -28,20 +28,22 @@ stages:
   # ========================================
   # STAGE 1: BACKEND TESTS
   # ========================================
-  - stage: BackendTests
+- stage: BackendTests
     displayName: 'Backend - Tests & Quality Checks'
     jobs:
       - job: TestBackend
-  steps:
-    - checkout: self
-    - script: |
-        pwd
-        ls -la
-        ls -la backend/ || echo "backend/ n'existe pas"
-        ls -la tests/ || echo "tests/ n'existe pas"
-        python --version
-        which python
-      displayName: 'DIAGNOSTIC Mac'
+        displayName: 'Test Backend'          # ← Ajoute ça
+        steps:                               # ← 6 espaces (3 niveaux)
+          - checkout: self
+            displayName: 'Checkout repository'
+          - script: |
+              pwd
+              ls -la
+              ls -la backend/ || echo "backend/ n'existe pas"
+              ls -la tests/ || echo "tests/ n'existe pas"
+              python --version
+              which python
+            displayName: 'DIAGNOSTIC Mac'
       
 
   # ========================================
