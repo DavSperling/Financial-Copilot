@@ -1,0 +1,143 @@
+# azure-pipelines.yml - Version Vercel (Simple)
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+  # ========================================
+  # STAGE 1: BUILD & TEST BACKEND
+  # ========================================
+  - stage: TestBackend
+    displayName: 'Test Backend'
+    jobs:
+      - job: BackendTests
+        displayName: 'Backend Tests & Quality Checks'
+        steps:
+          - checkout: self
+          
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.11'
+          
+          - script: |
+              pip install -r backend/requirements.txt
+              pip install pytest flake8 pytest-cov
+            displayName: 'Install dependencies'
+          
+          - script: |
+              flake8 backend/ --max-line-length=120
+            displayName: 'Python linting'
+          
+          - script: |
+              pytest backend/tests/ --cov=backend --cov-report=xml
+            displayName: 'Run tests'
+          
+          - task: PublishTestResults@2
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: '**/test-results.xml'
+            condition: succeededOrFailed()
+          
+          - task: PublishCodeCoverageResults@1
+            inputs:
+              codeCoverageTool: 'Cobertura'
+              summaryFileLocation: '**/coverage.xml'
+
+  # ========================================
+  # STAGE 2: BUILD & TEST FRONTEND
+  # ========================================
+  - stage: TestFrontend
+    displayName: 'Test Frontend'
+    dependsOn: []
+    jobs:
+      - job: FrontendTests
+        displayName: 'Frontend Tests & Quality Checks'
+        steps:
+          - checkout: self
+          
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '18.x'
+          
+          - script: |
+              cd frontend
+              npm ci
+            displayName: 'Install dependencies'
+          
+          - script: |
+              cd frontend
+              npm run lint
+            displayName: 'ESLint check'
+            continueOnError: true
+          
+          - script: |
+              cd frontend
+              npm test -- --coverage --watchAll=false
+            displayName: 'Run tests'
+          
+          - task: PublishTestResults@2
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: 'frontend/coverage/junit.xml'
+            condition: succeededOrFailed()
+          
+          # Vercel preview build (test que ça build correctement)
+          - script: |
+              cd frontend
+              npm run build
+            displayName: 'Test production build'
+
+  # ========================================
+  # STAGE 3: SECURITY SCAN
+  # ========================================
+  - stage: SecurityScan
+    displayName: 'Security Checks'
+    dependsOn:
+      - TestBackend
+      - TestFrontend
+    jobs:
+      - job: SecurityJob
+        steps:
+          - checkout: self
+          
+          - script: |
+              pip install safety
+              safety check --file backend/requirements.txt
+            displayName: 'Python dependency scan'
+            continueOnError: true
+          
+          - script: |
+              cd frontend
+              npm audit --audit-level=moderate
+            displayName: 'Node.js dependency scan'
+            continueOnError: true
+
+  # ========================================
+  # STAGE 4: BACKEND DEPLOYMENT (Azure/AWS/Other)
+  # ========================================
+  - stage: DeployBackend
+    displayName: 'Deploy Backend'
+    dependsOn:
+      - TestBackend
+      - SecurityScan
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployBackendJob
+        environment: 'Production'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                # Deploy backend à Azure, AWS, ou autre
+                - task: AzureWebAppContainer@1
+                  inputs:
+                    azureSubscription: 'AzureServiceConnection'
+                    appName: 'portfolio-copilot-backend'
+                    containers: 'portfolio-backend:latest'
+                  displayName: 'Deploy backend to Azure'
