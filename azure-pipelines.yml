@@ -18,7 +18,7 @@ pr:
       - develop
 
 pool:
-  vmImage: 'ubuntu-latest'
+  name: 'macpool'
 
 variables:
   pythonVersion: '3.11'
