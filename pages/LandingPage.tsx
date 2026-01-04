@@ -15,7 +15,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-3">
-              <img src="/public/logo-icon.png" alt="BegInvest Logo" className="w-10 h-10 object-contain" />
+              <img src="/logo-icon.png" alt="BegInvest Logo" className="w-10 h-10 object-contain" />
               <span className="text-xl font-bold text-slate-900 font-display">BegInvest</span>
             </div>
             <div className="hidden md:flex items-center gap-8">
@@ -127,7 +127,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       <footer className="bg-slate-50 py-12 border-t border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-3">
-            <img src="/public/logo-icon.png" alt="BegInvest Logo" className="w-8 h-8 object-contain" />
+            <img src="/logo-icon.png" alt="BegInvest Logo" className="w-8 h-8 object-contain" />
             <span className="font-bold text-slate-900">BegInvest</span>
           </div>
           <div className="text-slate-500 text-sm">

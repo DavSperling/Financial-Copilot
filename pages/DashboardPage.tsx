@@ -819,7 +819,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout, on
         flex flex-col
       `}>
         <div className="h-16 flex items-center px-6 border-b border-slate-100">
-          <img src="/public/logo-icon.png" alt="BegInvest" className="w-10 h-10 object-contain mr-3" />
+          <img src="/logo-icon.png" alt="BegInvest" className="w-10 h-10 object-contain mr-3" />
           <span className="text-xl font-bold text-slate-900 dark:text-white font-display">BegInvest</span>
         </div>
 
