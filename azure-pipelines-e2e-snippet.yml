@@ -1,0 +1,48 @@
+
+  # ========================================
+  # STAGE 5: E2E TESTS (Selenium)
+  # ========================================
+  - stage: E2ETests
+    displayName: 'E2E - Selenium Tests'
+    dependsOn:
+      - FrontendTests
+      - BackendTests
+    # condition: succeeded()
+    jobs:
+      - job: SeleniumTests
+        displayName: 'Run Selenium Tests'
+        steps:
+          - checkout: self
+          
+          # Install dependencies
+          - script: |
+              pip install selenium
+            displayName: 'Install Selenium'
+
+          # Start Backend (Background)
+          - script: |
+              cd backend
+              source venv/bin/activate
+              # Run in background
+              uvicorn app.main:app --host 127.0.0.1 --port 8000 &
+              echo "Backend started on port 8000"
+              sleep 5 # Wait for startup
+            displayName: 'Start Backend'
+            env:
+                DATABASE_URL: $(DATABASE_URL) # Ensure pipeline has this var
+
+          # Start Frontend (Background)
+          - script: |
+              npm ci
+              # Run dev server in background
+              npm run dev -- --port 5173 &
+              echo "Frontend started on port 5173"
+              sleep 10 # Wait for startup
+            displayName: 'Start Frontend'
+
+          # Run Selenium
+          - script: |
+              export TEST_BASE_URL="http://localhost:5173"
+              export CI=true
+              python tests/selenium_workflow.py
+            displayName: 'Execute Selenium Script'
