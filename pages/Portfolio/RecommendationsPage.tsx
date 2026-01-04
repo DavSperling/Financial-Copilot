@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { getPortfolioRecommendation, PortfolioRecommendation } from '../../services/portfolioService';
 import AllocationChart from '../../components/Portfolio/AllocationChart';
 import { StockRecommendationCard } from '../../components/Portfolio/StockRecommendationCard';
@@ -7,6 +7,7 @@ import { Loader2, TrendingUp, Shield, Clock, BarChart3, Sparkles, CheckCircle2, 
 import { supabase } from '../../supabaseClient';
 import { addAssetToPortfolio, getStockRecommendations, StockRecommendation } from '../../services/portfolioService';
 import { User } from '@supabase/supabase-js';
+import { useBuyingPower } from '../../hooks/useBuyingPower';
 
 const PROFILE_NAMES: Record<number, string> = {
     1: "Conservative",
@@ -34,7 +35,16 @@ const RecommendationsPage: React.FC = () => {
     const [user, setUser] = useState<User | null>(null);
 
     // Budget & Modal state
+    const { buyingPower, loading: buyingPowerLoading } = useBuyingPower(user?.id);
     const [remainingBudget, setRemainingBudget] = useState<number>(-1); // -1 means unknown/unlimited
+
+    // Sync local budget with shared buying power hook
+    useEffect(() => {
+        if (!buyingPowerLoading && buyingPower !== undefined) {
+            setRemainingBudget(buyingPower);
+        }
+    }, [buyingPower, buyingPowerLoading]);
+
     const [selectedStock, setSelectedStock] = useState<StockRecommendation | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -56,7 +66,14 @@ const RecommendationsPage: React.FC = () => {
             const stockResponse = await getStockRecommendations(riskProfile, currentUserId);
 
             setStockRecommendations(stockResponse.recommendations);
-            setRemainingBudget(stockResponse.remaining_budget);
+
+            // If hook hasn't loaded yet or failed, fall back to API (though API might convert to -1 now)
+            // But we prefer the hook's live value if available
+            if (!buyingPowerLoading && buyingPower !== undefined) {
+                setRemainingBudget(buyingPower);
+            } else {
+                setRemainingBudget(stockResponse.remaining_budget);
+            }
 
             const sStatuses: Record<string, 'pending' | 'accepted' | 'rejected'> = {};
             stockResponse.recommendations.forEach(s => { sStatuses[s.ticker] = 'pending'; });
