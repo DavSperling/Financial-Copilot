@@ -36,7 +36,8 @@ class FinancialCopilotTests(unittest.TestCase):
         
         self.driver = webdriver.Chrome(options=options)
         self.driver.maximize_window()
-        self.driver.set_window_size(1920, 1080)
+        # Fullscreen mode for maximum visibility
+        self.driver.fullscreen_window()
         self.driver.set_page_load_timeout(30)
         self.wait = WebDriverWait(self.driver, 30)
         self.screenshot_counter = 0
@@ -117,15 +118,17 @@ class FinancialCopilotTests(unittest.TestCase):
         
         driver = self.driver
         driver.get(BASE_URL)
+        time.sleep(3)  # Wait for page to load
         self.take_screenshot("01_landing_page")
 
         # 1. Signup Flow
         print("\n[1/11] Navigating to Sign Up...")
         signup_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Get Started') or contains(text(), 'Sign up')]")))
         signup_btn.click()
+        time.sleep(2)
 
         print("[2/11] Filling Registration Form...")
-        time.sleep(2)
+        time.sleep(3)
         self.take_screenshot("02_signup_form")
         
         self.wait.until(EC.visibility_of_element_located((By.XPATH, "//h1[contains(text(), 'Create an Account')]")))
@@ -153,59 +156,65 @@ class FinancialCopilotTests(unittest.TestCase):
         
         # Etape 1: Age
         print("[5/11] Onboarding Step 1: Age...")
-        time.sleep(1)
+        time.sleep(2)
         age_input = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='number']")))
         age_input.click()
-        time.sleep(0.3)
+        time.sleep(1)
         age_input.send_keys(Keys.CONTROL + "a")
         age_input.send_keys(Keys.DELETE)
         self.set_react_input_value(age_input, "30")
-        time.sleep(0.5)
+        time.sleep(1.5)
         self.click_next()
 
         # Etape 2: Experience
         print("[6/11] Onboarding Step 2: Experience...")
+        time.sleep(2)
         self.click_card_by_text("I am new to investing")
         self.click_next()
 
         # Etape 3: Risk Tolerance
         print("[7/11] Onboarding Step 3: Risk Tolerance...")  
+        time.sleep(2.5)
         self.click_card_by_text("Balanced risk/reward")
         self.click_next()
 
         # Etape 4: Initial Investment
         print("[8/11] Onboarding Step 4: Initial Investment...")
-        time.sleep(1)
+        time.sleep(3)
         slider = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='range']")))
         self.set_react_input_value(slider, "25000")
-        time.sleep(0.5)
+        time.sleep(1.5)
         self.click_next()
 
         # Etape 5: Monthly Budget
         print("[9/11] Onboarding Step 5: Monthly Budget...")
-        time.sleep(1)
+        time.sleep(3.5)
         slider = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='range']")))
         self.set_react_input_value(slider, "1000")
-        time.sleep(0.5)
+        time.sleep(1.5)
         self.click_next()
 
         # Etape 6: Goals
         print("[10/11] Onboarding Step 6: Investment Goals...")
+        time.sleep(4)
         self.click_card_by_text("Retirement")
         self.click_next()
 
         # Etape 7: Sectors
         print("[11/14] Onboarding Step 7: Sectors...")
+        time.sleep(4.5)
         self.click_card_by_text("Technology")
         self.click_next()
 
         # Etape 8: Countries
         print("[12/14] Onboarding Step 8: Countries...")
+        time.sleep(5)
         self.click_card_by_text("USA")
         self.click_next()
 
         # Etape 9: Summary
         print("[13/14] Onboarding Step 9: Summary & Finish...")
+        time.sleep(5.5)
         finish_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Finish')]")))
         finish_btn.click()
 
@@ -397,7 +406,7 @@ class FinancialCopilotTests(unittest.TestCase):
         """Helper to click the Next/Continue button in onboarding"""
         next_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Next')]")))
         next_btn.click()
-        time.sleep(0.5)
+        time.sleep(1.5)
 
     def login_helper(self):
         """Helper to log in quickly if not already logged in"""
