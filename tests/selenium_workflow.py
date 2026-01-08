@@ -273,141 +273,52 @@ class FinancialCopilotTests(unittest.TestCase):
             
         print("\n🎉 TEST 2 PASSED: Login successful\n")
 
+    
     def test_03_edit_profile(self):
-        """Test 3: Edit Profile - VERSION ULTRA-STABLE CI"""
-        print(f"\n{'='*80}")
-        print("TEST 3: EDIT PROFILE - CI PROOF")
-        print(f"{'='*80}")
+        print(f"\n{'='*70}")
+        print("TEST 3: EDIT PROFILE")
         
-        # 1. Login + Dashboard stable
         self.login_helper()
-        time.sleep(5)  # ⬅️ CRUCIAL pour CI
-        
-        print("\n[1/6] 🔍 Recherche carte utilisateur...")
-        self.take_screenshot("03_start_dashboard")
-        
-        # 2. MULTIPLES SELECTEURS pour user card (sidebar)
-        user_card_selectors = [
-            "//aside[contains(@class,'sidebar')]//div[contains(@class,'cursor-pointer')]",
-            "//aside//div[contains(@class,'truncate')]",
-            "//aside//p[contains(text(),'test')]/ancestor::div[1]",
-            "//aside//*[contains(@class,'user')]//div[contains(@class,'cursor-pointer')]",
-            "//div[contains(@class,'sidebar')]//*[contains(text(),'test')]/ancestor::div[2]"
-        ]
-        
-        user_card = None
-        for i, selector in enumerate(user_card_selectors, 1):
-            try:
-                print(f"   Essai {i}/5: {selector[:40]}...")
-                user_card = WebDriverWait(self.driver, 3).until(
-                    EC.element_to_be_clickable((By.XPATH, selector))
-                )
-                print(f"   ✅ Trouvé avec sélecteur {i}")
-                break
-            except:
-                continue
-        
-        if not user_card:
-            self.take_screenshot("03_ERROR_user_card_missing")
-            print("❌ User card NON trouvée - mais on continue!")
-            return  # ← Pas d'échec fatal
-        
-        # 3. CLIC JS + Scroll (100% fiable)
-        self.driver.execute_script("arguments[0].scrollIntoView(true);", user_card)
+        time.sleep(2)  # Settle dashboard
+
+        print("\n[1/6] Navigating to User Menu...")
+        # Cliquer sur la user card (nom/email) en bas à gauche de la sidebar
+        user_card_xpath = "//aside//div[contains(@class, 'cursor-pointer') and .//p[contains(@class, 'truncate')]]"
+        user_card = self.wait.until(EC.element_to_be_clickable((By.XPATH, user_card_xpath)))
+        user_card.click()
         time.sleep(1)
-        self.driver.execute_script("arguments[0].click();", user_card)
-        time.sleep(3)
-        
-        print("[2/6] ✅ Page profil...")
-        self.take_screenshot("03_profile_page")
-        
-        # 4. Vérif page profil (MULTIPLES selecteurs)
-        profile_indicators = [
-            "//h1[contains(text(),'Profile')]",
-            "//h1[contains(text(),'Profil')]",
-            "//*[contains(text(),'Profile') and contains(@class,'text-')]",
-            "//div[contains(@class,'profile')]//h1"
-        ]
-        
-        profile_ok = False
-        for selector in profile_indicators:
-            try:
-                WebDriverWait(self.driver, 3).until(
-                    EC.visibility_of_element_located((By.XPATH, selector))
-                )
-                profile_ok = True
-                break
-            except:
-                pass
-        
-        print(f"   {'✅' if profile_ok else '⚠️'} Page profil {'OK' if profile_ok else 'incertain'}")
 
-        # 5. PHONE (optionnel, pas fatal)
-        print("[3/6] 📱 Phone (optionnel)...")
-        try:
-            phone_input = WebDriverWait(self.driver, 3).until(
-                EC.presence_of_element_located((
-                    By.XPATH, 
-                    "//input[contains(@placeholder,'phone') or contains(@name,'phone')]"
-                ))
-            )
-            phone_input.clear()
-            phone_input.send_keys("555-123-4567")
-            print("   ✅ Phone OK")
-        except:
-            print("   ⚠️ Phone ignoré")
-
-        # 6. ONGLET STRATEGY (optionnel)
-        print("[4/6] ⚙️ Strategy tab...")
-        try:
-            strategy_tab = WebDriverWait(self.driver, 3).until(
-                EC.element_to_be_clickable((
-                    By.XPATH,
-                    "//button[contains(translate(text(),'STRATEGY','strategy'),'strategy')]"
-                ))
-            )
-            strategy_tab.click()
-            time.sleep(2)
-            print("   ✅ Strategy OK")
-        except:
-            print("   ⚠️ Strategy ignoré")
-
-        # 7. RISK (optionnel)
-        print("[5/6] 🎯 Risk HIGH...")
-        try:
-            risk_select = self.driver.find_element(
-                By.XPATH, "//select[./option[contains(text(),'High')]]"
-            )
-            from selenium.webdriver.support.ui import Select
-            Select(risk_select).select_by_visible_text("High")
-            print("   ✅ Risk = HIGH")
-        except:
-            print("   ⚠️ Risk ignoré")
-
-        # 8. SAVE (optionnel mais tenté)
-        print("[6/6] 💾 Save...")
-        save_selectors = [
-            "//button[contains(text(),'Save')]",
-            "//button[contains(text(),'Update')]",
-            "//button[contains(text(),'Save Changes')]"
-        ]
+        print("[2/6] Verifying Profile Page...")
+        self.wait.until(EC.visibility_of_element_located((By.XPATH, "//h1[contains(text(), 'Your Profile')]")))
+        print("  ✅ Profile page loaded")
         
-        for selector in save_selectors:
-            try:
-                save_btn = self.driver.find_element(By.XPATH, selector)
-                self.driver.execute_script("arguments[0].click();", save_btn)
-                print("   ✅ Save cliqué!")
-                break
-            except:
-                continue
-        
-        # 9. Attente finale + screenshot
-        time.sleep(3)
-        self.take_screenshot("03_final_result")
-        
-        print("\n🎉 TEST 3 TERMINÉ - AUCUN CRASH!")
-        print("✅ Même si certaines étapes échouent, le test passe!")
+        print("[3/6] Adding Phone Number...")
+        phone_input = self.wait.until(EC.visibility_of_element_located((By.XPATH, "//label[contains(text(), 'Phone Number')]/following-sibling::div//input")))
+        phone_input.clear()
+        phone_input.send_keys("+1 555 123 4567")
 
+        print("[4/6] Switching to Strategy Tab...")
+        strategy_tab = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Strategy')]")))
+        strategy_tab.click()
+        time.sleep(1)
+        
+        print("[5/6] Modifying Risk Tolerance to High...")
+        select_element = self.wait.until(EC.presence_of_element_located((By.XPATH, "//select[./option[@value='high']]")))
+        select = Select(select_element)
+        select.select_by_value("high")
+
+        print("[6/6] Saving Changes...")
+        save_btn = self.driver.find_element(By.XPATH, "//button[contains(text(), 'Save Changes')]")
+        save_btn.click()
+
+        time.sleep(2)
+        self.wait.until(EC.presence_of_element_located((By.XPATH, "//span[contains(text(), 'Profile updated successfully')]")))
+        print("  ✅ Success message displayed")
+        
+        print("\n🎉 TEST 3 PASSED: Profile updated (Phone & Risk)\n")
+
+        
+        self.login_helper()
     def test_04_buy_asset(self):
         """Test: Achat d'une action (AAPL)"""
         print(f"\n{'='*70}")
