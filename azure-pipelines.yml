@@ -1,5 +1,5 @@
 # Azure DevOps Pipeline -    Financial Dashboard (Mac self-hosted)
-# Tests Backend + Frontend monolithique + Security
+# Tests Backend + Frontend monolithique + Security + Selenium E2E
 
 trigger:
   branches:
@@ -130,13 +130,89 @@ stages:
             condition: succeededOrFailed()
 
   # ========================================
-  # STAGE 3: SECURITY SCANNING
+  # STAGE 3: SELENIUM E2E (tests UI)
+  # ========================================
+  - stage: SeleniumE2E
+    displayName: 'E2E - Selenium Dashboard'
+    dependsOn:
+      - FrontendTests
+    condition: succeededOrFailed()
+    jobs:
+      - job: RunSelenium
+        displayName: 'Run Selenium E2E tests'
+        pool:
+          name: 'macpool'
+        variables:
+          TEST_BASE_URL: 'http://localhost:5173'
+        steps:
+          - checkout: self
+            displayName: 'Checkout repository'
+
+          # Node pour lancer le front en dev (monolithique)
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '$(nodeVersion)'
+            displayName: 'Use Node.js $(nodeVersion) for Selenium'
+
+          # Installer deps front (au cas où cet agent n'a pas encore fait npm ci)
+          - script: |
+              npm ci
+            displayName: 'Install NPM dependencies (for Selenium)'
+
+          # Lancer le front en mode dev en tâche de fond
+          - script: |
+              echo "Starting Vite dev server for Selenium..."
+              npm run dev -- --host 0.0.0.0 --port 5173 &
+              DEV_PID=$!
+              echo "DEV_PID=$DEV_PID" > dev_pid.txt
+              echo "Waiting for frontend to be ready..."
+              for i in {1..30}; do
+                if curl -sSf http://localhost:5173 >/dev/null 2>&1; then
+                  echo "Frontend is up!"
+                  break
+                fi
+                echo "Waiting for frontend (attempt $i)..."
+                sleep 2
+              done
+            displayName: 'Start frontend dev server (Vite)'
+
+          # Setup Python + Selenium
+          - script: |
+              echo "=== PYTHON & SELENIUM SETUP ==="
+              which python3 || echo "python3 not found"
+              python3 --version || true
+              python3 -m pip install --upgrade pip || true
+              python3 -m pip install selenium
+            displayName: 'Install Python Selenium dependencies'
+
+          # Exécuter la suite Selenium (tests/selenium_workflow.py)
+          - script: |
+              export TEST_BASE_URL=$(TEST_BASE_URL)
+              export CI=true
+              echo "Using TEST_BASE_URL=$TEST_BASE_URL"
+              ls -R
+              python3 tests/selenium_workflow.py
+            displayName: 'Run Selenium unittest suite'
+
+          # Stopper le dev server proprement
+          - script: |
+              if [ -f dev_pid.txt ]; then
+                source dev_pid.txt || true
+                echo "Stopping dev server PID=$DEV_PID"
+                kill $DEV_PID || true
+              fi
+            displayName: 'Stop frontend dev server'
+            condition: always()
+
+  # ========================================
+  # STAGE 4: SECURITY SCANNING
   # ========================================
   - stage: SecurityScan
     displayName: 'Security - Scans'
     dependsOn:
       - BackendTests
       - FrontendTests
+      - SeleniumE2E
     condition: succeeded()
     jobs:
       - job: SecurityChecks
@@ -158,13 +234,14 @@ stages:
             continueOnError: true
 
   # ========================================
-  # STAGE 4: BUILD SUMMARY
+  # STAGE 5: BUILD SUMMARY
   # ========================================
   - stage: BuildSummary
     displayName: '✅ Build Summary'
     dependsOn:
       - BackendTests
       - FrontendTests
+      - SeleniumE2E
       - SecurityScan
     condition: succeededOrFailed()
     jobs:
@@ -176,6 +253,7 @@ stages:
               echo "===================="
               echo "Backend: ✅ Tests exécutés"
               echo "Frontend: ✅ Build OK"
+              echo "Selenium: ✅ E2E exécutés"
               echo "Security: ✅ Scans OK"
               echo ""
               echo "📦 PROCHAINES ÉTAPES:"
