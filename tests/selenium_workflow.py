@@ -317,8 +317,6 @@ class FinancialCopilotTests(unittest.TestCase):
         
         print("\n🎉 TEST 3 PASSED: Profile updated (Phone & Risk)\n")
 
-        
-        self.login_helper()
     def test_04_buy_asset(self):
         """Test: Achat d'une action (AAPL)"""
         print(f"\n{'='*70}")
