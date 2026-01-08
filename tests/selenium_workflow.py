@@ -292,6 +292,7 @@ class FinancialCopilotTests(unittest.TestCase):
         self.wait.until(EC.visibility_of_element_located((By.XPATH, "//h1[contains(text(), 'Your Profile')]")))
         print("  ✅ Profile page loaded")
         
+        
         print("[3/6] Adding Phone Number...")
         phone_input = self.wait.until(EC.visibility_of_element_located((By.XPATH, "//label[contains(text(), 'Phone Number')]/following-sibling::div//input")))
         phone_input.clear()
