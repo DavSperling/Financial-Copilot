@@ -159,22 +159,22 @@ stages:
               npm ci
             displayName: 'Install NPM dependencies (for Selenium)'
 
-          # Lancer le front en mode dev en tâche de fond
+          # Lancer le front en mode dev en tâche de fond sur le port 5173
           - script: |
-              echo "Starting Vite dev server for Selenium..."
+              echo "Starting Vite dev server for Selenium on port 5173..."
               npm run dev -- --host 0.0.0.0 --port 5173 &
               DEV_PID=$!
               echo "DEV_PID=$DEV_PID" > dev_pid.txt
-              echo "Waiting for frontend to be ready..."
+              echo "Waiting for frontend to be ready on http://localhost:5173..."
               for i in {1..30}; do
                 if curl -sSf http://localhost:5173 >/dev/null 2>&1; then
-                  echo "Frontend is up!"
+                  echo "Frontend is up on port 5173!"
                   break
                 fi
                 echo "Waiting for frontend (attempt $i)..."
                 sleep 2
               done
-            displayName: 'Start frontend dev server (Vite)'
+            displayName: 'Start frontend dev server (Vite 5173)'
 
           # Setup Python + Selenium
           - script: |
