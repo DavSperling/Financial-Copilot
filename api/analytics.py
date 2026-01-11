@@ -66,6 +66,30 @@ def analyze_portfolio(user_id):
         
         sectors_list = [{"sector": k, "weight": round((v["value"]/total_value*100) if total_value > 0 else 0, 1), "value": round(v["value"], 2), "count": v["count"]} for k, v in sectors.items()]
         
+        # Build detailed analysis text
+        sector_lines = "\n".join([f"- **{s['sector']}**: {s['weight']}% (${s['value']:,.2f})" for s in sectors_list])
+        diversification_score = min(len(assets) * 20, 100)
+        risk_level = "Low" if len(assets) >= 5 else "High" if len(assets) <= 2 else "Medium"
+        
+        detailed_analysis = f"""## Portfolio Overview
+
+Your portfolio contains **{len(assets)} assets** with a total value of **${total_value:,.2f}**.
+
+### Sector Allocation
+
+{sector_lines}
+
+### Risk Assessment
+
+- **Diversification Score**: {diversification_score}/100
+- **Concentration Risk**: {risk_level}
+- **Number of Sectors**: {len(sectors)}
+
+### Recommendations
+
+{"Your portfolio is well-diversified. Continue monitoring sector allocations." if len(assets) >= 5 else "Consider adding more assets to improve diversification and reduce risk."}
+"""
+        
         return {
             "summary": f"Portfolio: {len(assets)} assets, ${total_value:,.2f}",
             "total_value": round(total_value, 2),
@@ -75,13 +99,14 @@ def analyze_portfolio(user_id):
             "assets": assets_analysis,
             "sectors": sectors_list,
             "risk_metrics": {
-                "diversification_score": min(len(assets) * 20, 100),
+                "diversification_score": diversification_score,
                 "concentration_risk": "Low" if len(assets) >= 5 else "High",
                 "top_holding_weight": max([a["weight"] for a in assets_analysis]) if assets_analysis else 0,
                 "sector_count": len(sectors),
                 "asset_count": len(assets)
             },
-            "recommendations": ["Keep diversifying!" if len(assets) >= 5 else "Add more assets for diversification."]
+            "recommendations": ["Keep diversifying!" if len(assets) >= 5 else "Add more assets for diversification."],
+            "detailed_analysis": detailed_analysis
         }
     except Exception as e:
         return {"error": str(e)}
